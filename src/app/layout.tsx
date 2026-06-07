@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
 // ─── Fonts ────────────────────────────────────────────────────────────────────
@@ -114,6 +115,9 @@ export const metadata: Metadata = {
 
   // ── Verification ──────────────────────────────────────────────────────────
   // verification: { google: "YOUR_GSC_VERIFICATION_TOKEN" },
+  other: {
+    "google-adsense-account": "ca-pub-8175902243591443",
+  },
 
   // ── Category ──────────────────────────────────────────────────────────────
   category: "games",
@@ -141,6 +145,14 @@ export default function RootLayout({
       className={`${inter.variable} ${spaceGrotesk.variable} dark`}
       suppressHydrationWarning
     >
+      <head>
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8175902243591443"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+      </head>
       <body
         className="font-inter antialiased bg-neutral-950 text-neutral-100 selection:bg-violet-500/40 selection:text-violet-100"
         suppressHydrationWarning
