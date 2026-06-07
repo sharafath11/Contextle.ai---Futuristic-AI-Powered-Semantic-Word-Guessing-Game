@@ -7,6 +7,7 @@ import { createClient } from "@/utils/supabase/client";
 import type { GuessEntry, GuessResponse, UserProfile } from "@/types/game";
 import { getRankTier, getRankColor, getRankBarClass, getRankLabel } from "@/types/game";
 import HowToPlayModal from "@/components/HowToPlayModal";
+import { Logo } from "@/components/Logo";
 import type { User } from "@supabase/supabase-js";
 
 // JSON-LD for Search Engine Optimization
@@ -530,10 +531,9 @@ export default function HomePage() {
         <header className="sticky top-0 z-30 border-b border-white/[0.04] bg-[#09090b]/80 backdrop-blur-xl">
           <nav className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="font-bold text-sm text-white tracking-tight flex items-center gap-1.5">
-                <Sparkles size={14} className="text-emerald-400" />
-                Contextle<span className="text-neutral-600">.ai</span>
-              </span>
+              <a href="/" className="h-6 w-auto block flex items-center hover:opacity-80 transition-opacity" aria-label="Contextle Home">
+                <Logo className="h-5 w-auto" />
+              </a>
               {profile && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold tracking-wide uppercase">
                   Level {profile.current_level}
