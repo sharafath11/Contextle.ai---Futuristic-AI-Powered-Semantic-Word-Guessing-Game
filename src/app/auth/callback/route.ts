@@ -43,9 +43,12 @@ export async function GET(request: Request) {
       // Redirect to the game (or wherever `next` points)
       const forwardedHost = request.headers.get("x-forwarded-host");
       const isLocalEnv = process.env.NODE_ENV === "development";
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
 
       if (isLocalEnv) {
         return NextResponse.redirect(`${origin}${next}`);
+      } else if (siteUrl) {
+        return NextResponse.redirect(`${siteUrl.replace(/\/$/, '')}${next}`);
       } else if (forwardedHost) {
         return NextResponse.redirect(`https://${forwardedHost}${next}`);
       } else {
