@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://contextle.ai";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://contextle.sharafathabi.cloud";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [

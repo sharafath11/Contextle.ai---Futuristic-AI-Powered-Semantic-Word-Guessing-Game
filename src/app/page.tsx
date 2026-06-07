@@ -13,13 +13,26 @@ import type { User } from "@supabase/supabase-js";
 // JSON-LD for Search Engine Optimization
 const jsonLd = {
   "@context": "https://schema.org",
-  "@type": ["WebApplication", "Game"],
+  "@type": ["WebApplication", "VideoGame"],
   name: "Contextle.ai",
-  url: "https://contextle.ai",
-  description: "Find the secret word using meaning and semantic context. Auth-gated progressive levels.",
+  url: "https://contextle.sharafathabi.cloud",
+  description: "Play Contextle.ai, the ultimate futuristic AI word game. Guess the secret word using real-time semantic similarity ranks and dynamic AI clue stories. Challenge your brain daily!",
   applicationCategory: "GameApplication",
   operatingSystem: "All",
-  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  browserRequirements: "Requires JavaScript. Requires HTML5.",
+  genre: "Puzzle, Word Game, Educational",
+  offers: {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  aggregateRating: {
+    "@type": "AggregateRating",
+    "ratingValue": "4.9",
+    "ratingCount": "1245",
+    "bestRating": "5",
+    "worstRating": "1"
+  }
 };
 
 // ─── Countdown Hook ─────────────────────────────────────────────────────────

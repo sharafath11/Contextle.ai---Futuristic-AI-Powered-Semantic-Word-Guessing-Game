@@ -17,10 +17,10 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 // ─── Site Constants ───────────────────────────────────────────────────────────
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://contextle.ai";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://contextle.sharafathabi.cloud";
 const SITE_NAME = "Contextle.ai";
 const SITE_DESCRIPTION =
-  "The AI-powered word guessing game. Each day a new secret word — use AI semantic similarity to hunt it down. How close can you get?";
+  "Play Contextle.ai, the ultimate futuristic AI word game. Guess the secret word using real-time semantic similarity ranks and dynamic AI clue stories. Challenge your brain daily!";
 const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 // ─── Global Metadata ─────────────────────────────────────────────────────────
@@ -29,21 +29,19 @@ export const metadata: Metadata = {
 
   // ── Core ──────────────────────────────────────────────────────────────────
   title: {
-    default: "Contextle.ai — The AI Semantic Word Guessing Game",
+    default: "Contextle.ai - Futuristic AI Word Guessing Game",
     template: "%s | Contextle.ai",
   },
   description: SITE_DESCRIPTION,
   keywords: [
     "contextle",
-    "AI word game",
+    "contextle ai",
     "semantic word game",
-    "daily word game",
-    "wordle alternative",
-    "contexto inspired",
-    "word similarity game",
-    "Gemini AI game",
-    "word guessing game 2025",
-    "NLP word puzzle",
+    "ai word guess",
+    "contexto clone",
+    "wordle ai",
+    "online word puzzles",
+    "free browser games"
   ],
   authors: [{ name: "Contextle.ai Team", url: SITE_URL }],
   creator: "Contextle.ai",
@@ -51,7 +49,7 @@ export const metadata: Metadata = {
 
   // ── Canonical & Robots ────────────────────────────────────────────────────
   alternates: {
-    canonical: "/",
+    canonical: "https://contextle.sharafathabi.cloud",
   },
   robots: {
     index: true,
@@ -71,10 +69,10 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     alternateLocale: ["en_GB", "en_AU"],
-    url: SITE_URL,
+    url: "https://contextle.sharafathabi.cloud",
     siteName: SITE_NAME,
-    title: "Contextle.ai — The AI Semantic Word Guessing Game",
-    description: SITE_DESCRIPTION,
+    title: "Contextle.ai - The AI Semantic Word Game",
+    description: "Can you guess today's secret word? Decode the AI clue story and climb the level ranks now!",
     images: [
       {
         url: OG_IMAGE,
@@ -91,8 +89,8 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: "@contextleai",
     creator: "@contextleai",
-    title: "Contextle.ai — The AI Semantic Word Guessing Game",
-    description: SITE_DESCRIPTION,
+    title: "Contextle.ai - The AI Semantic Word Game",
+    description: "Can you guess today's secret word? Decode the AI clue story and climb the level ranks now!",
     images: [
       {
         url: OG_IMAGE,
