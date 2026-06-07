@@ -18,7 +18,7 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 // ─── Site Constants ───────────────────────────────────────────────────────────
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://contextle.sharafathabi.cloud";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://contextle.online";
 const SITE_NAME = "Contextle.ai";
 const SITE_DESCRIPTION =
   "Play Contextle.ai, the ultimate futuristic AI word game. Guess the secret word using real-time semantic similarity ranks and dynamic AI clue stories. Challenge your brain daily!";
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
 
   // ── Canonical & Robots ────────────────────────────────────────────────────
   alternates: {
-    canonical: "https://contextle.sharafathabi.cloud",
+    canonical: "https://contextle.online",
   },
   robots: {
     index: true,
@@ -70,7 +70,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     alternateLocale: ["en_GB", "en_AU"],
-    url: "https://contextle.sharafathabi.cloud",
+    url: "https://contextle.online",
     siteName: SITE_NAME,
     title: "Contextle.ai - The AI Semantic Word Game",
     description: "Can you guess today's secret word? Decode the AI clue story and climb the level ranks now!",

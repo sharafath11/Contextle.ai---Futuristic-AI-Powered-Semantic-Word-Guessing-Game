@@ -15,7 +15,7 @@ const jsonLd = {
   "@context": "https://schema.org",
   "@type": ["WebApplication", "VideoGame"],
   name: "Contextle.ai",
-  url: "https://contextle.sharafathabi.cloud",
+  url: "https://contextle.online",
   description: "Play Contextle.ai, the ultimate futuristic AI word game. Guess the secret word using real-time semantic similarity ranks and dynamic AI clue stories. Challenge your brain daily!",
   applicationCategory: "GameApplication",
   operatingSystem: "All",
