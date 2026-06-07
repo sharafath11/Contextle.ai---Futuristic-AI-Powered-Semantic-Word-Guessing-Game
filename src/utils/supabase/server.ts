@@ -9,10 +9,12 @@ import { cookies } from "next/headers";
 
 export async function createClient() {
   const cookieStore = await cookies();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-project.supabase.co";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     {
       cookies: {
         getAll() {
@@ -42,15 +44,14 @@ export async function createAdminClient() {
   const serviceKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_KEY ||
-    process.env.SUPABASE_SERVICE_KEY;
+    process.env.SUPABASE_SERVICE_KEY ||
+    "placeholder-service-key";
 
-  if (!serviceKey) {
-    console.error("[contextle] Missing Supabase service key in environment");
-  }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-project.supabase.co";
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceKey!,
+    url,
+    serviceKey,
     {
       cookies: {
         getAll() {
