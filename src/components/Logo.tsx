@@ -4,7 +4,7 @@ export const Logo: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
   return (
     <svg 
       xmlns="http://www.w3.org/2000/svg" 
-      viewBox="0 0 500 120" 
+      viewBox="0 0 380 120" 
       width="100%" 
       height="100%" 
       className="drop-shadow-[0_0_15px_rgba(6,182,212,0.3)]"

@@ -531,8 +531,8 @@ export default function HomePage() {
         <header className="sticky top-0 z-30 border-b border-white/[0.04] bg-[#09090b]/80 backdrop-blur-xl">
           <nav className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <a href="/" className="h-6 w-auto block flex items-center hover:opacity-80 transition-opacity" aria-label="Contextle Home">
-                <Logo className="h-5 w-auto" />
+              <a href="/" className="h-7 flex items-center hover:opacity-80 transition-opacity" aria-label="Contextle Home">
+                <Logo className="h-6.5 w-auto" />
               </a>
               {profile && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold tracking-wide uppercase">
