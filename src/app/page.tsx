@@ -828,10 +828,21 @@ export default function HomePage() {
         </main>
 
         {/* Footer */}
-        <footer className="border-t border-white/[0.03] py-5 text-center mt-auto">
-          <p className="text-[10px] text-neutral-600 font-medium">
-            SaaS semantic evaluator powered by <span className="text-neutral-500">Gemini-2.0-Flash</span>.
-          </p>
+        <footer className="border-t border-white/[0.03] py-5 mt-auto">
+          <div className="max-w-2xl mx-auto px-4">
+            <p className="text-[10px] text-neutral-600 font-medium text-center mb-3">
+              SaaS semantic evaluator powered by <span className="text-neutral-500">Gemini-2.0-Flash</span>.
+            </p>
+            <div className="flex items-center justify-center gap-4 text-[10px] text-neutral-600">
+              <a href="/about" className="hover:text-cyan-400 transition-colors">About</a>
+              <span className="text-neutral-800">·</span>
+              <a href="/contact" className="hover:text-cyan-400 transition-colors">Contact</a>
+              <span className="text-neutral-800">·</span>
+              <a href="/privacy" className="hover:text-cyan-400 transition-colors">Privacy</a>
+              <span className="text-neutral-800">·</span>
+              <a href="/terms" className="hover:text-cyan-400 transition-colors">Terms</a>
+            </div>
+          </div>
         </footer>
       </div>
 
