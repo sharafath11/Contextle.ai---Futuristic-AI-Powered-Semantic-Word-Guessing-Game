@@ -230,8 +230,8 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-base font-semibold text-neutral-200 mb-3">12. Contact Us</h2>
             <p>
               If you have any questions about this Privacy Policy, please contact us at:{" "}
-              <a href="mailto:sharafath@sharafathabi.cloud" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
-                sharafath@sharafathabi.cloud
+              <a href="mailto:sharafathabi.personal@gmail.com" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
+                sharafathabi.personal@gmail.com
               </a>
             </p>
           </motion.section>

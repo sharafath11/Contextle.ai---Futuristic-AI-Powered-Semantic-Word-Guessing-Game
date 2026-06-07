@@ -66,16 +66,16 @@ export default function ContactPage() {
           className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 mb-8"
         >
           <p className="text-sm text-neutral-400 mb-3">
-            Have questions, feedback, or need support? Reach out to us directly:
+            For any bugs, game issues, or feedback, please reach out to us directly at:
           </p>
           <a
-            href="mailto:sharafath@sharafathabi.cloud"
+            href="mailto:sharafathabi.personal@gmail.com"
             className="inline-flex items-center gap-2 text-sm font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
-            sharafath@sharafathabi.cloud
+            sharafathabi.personal@gmail.com
           </a>
         </motion.div>
 
