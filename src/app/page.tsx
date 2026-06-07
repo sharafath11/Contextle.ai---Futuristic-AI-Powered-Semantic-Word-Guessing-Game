@@ -408,8 +408,20 @@ export default function HomePage() {
     setGeneratingWord(true);
     setError(null);
     try {
+      // Get previously solved words from localStorage
+      const solvedKey = `contextle_solved_words_${user.id}`;
+      const solvedRaw = localStorage.getItem(solvedKey);
+      const solvedWords = solvedRaw ? JSON.parse(solvedRaw) : [];
+
       const res = await fetch("/api/generate-word", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          excludeWords: solvedWords,
+          level: profile?.current_level ?? 1,
+        }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -433,6 +445,7 @@ export default function HomePage() {
 
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (!user) return;
     const word = inputValue.trim().toLowerCase();
     if (!word || isLoading || wonWord || !profile?.active_word) return;
     if (guesses.some((g) => g.word === word)) { setError(`Already guessed "${word}"`); return; }
@@ -455,6 +468,16 @@ export default function HomePage() {
       if (entry.isCorrect && data.newLevel) {
         setWonWord(word);
         setWonLevel(data.newLevel);
+        
+        // Track previously solved words to avoid repetition
+        const solvedKey = `contextle_solved_words_${user.id}`;
+        const solvedRaw = localStorage.getItem(solvedKey);
+        const solvedWords = solvedRaw ? JSON.parse(solvedRaw) : [];
+        if (!solvedWords.includes(word)) {
+          solvedWords.push(word);
+          localStorage.setItem(solvedKey, JSON.stringify(solvedWords));
+        }
+
         if (profile) {
           const savedKey = `contextle_guesses_${profile.id}_${profile.current_level}`;
           localStorage.removeItem(savedKey);
@@ -462,7 +485,7 @@ export default function HomePage() {
       }
     } catch { setError("Network error. Check connection."); }
     finally { setIsLoading(false); inputRef.current?.focus(); }
-  }, [inputValue, isLoading, wonWord, guesses, profile]);
+  }, [inputValue, isLoading, wonWord, guesses, profile, user]);
 
   const handleNextLevel = () => {
     if (wonLevel && profile) {

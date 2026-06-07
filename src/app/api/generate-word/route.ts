@@ -200,6 +200,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // Parse excludeWords and level from request body if available
+  let excludeWords: string[] = [];
+  let reqLevel: number | null = null;
+  try {
+    const body = await request.json();
+    if (body) {
+      if (Array.isArray(body.excludeWords)) {
+        excludeWords = body.excludeWords
+          .map((w: unknown) => String(w).trim().toLowerCase())
+          .filter(Boolean);
+      }
+      if (typeof body.level === "number") {
+        reqLevel = Math.round(body.level);
+      }
+    }
+  } catch {
+    // Body is empty or malformed
+  }
+
   // ── 2. Fetch user's current level ──────────────────────────────────────────
   const adminClient = await createAdminClient();
   const { data: profile, error: profileError } = await adminClient
@@ -216,35 +235,62 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const currentLevel = profile.current_level;
+  const currentLevel = reqLevel !== null ? reqLevel : profile.current_level;
 
   // ── 3. Generate word & clue stories using Gemini API ────────────────────────
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.warn("[contextle] GEMINI_API_KEY is not set. Falling back to local words.");
-    return useFallbackWord(adminClient, user.id, currentLevel);
+    return useFallbackWord(adminClient, user.id, currentLevel, excludeWords);
   }
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-pro",
+      generationConfig: {
+        temperature: 1.0,
+        responseMimeType: "application/json",
+      },
+    });
 
     const prompt = `
 You are generating content for an AI word-guessing game.
 Task: Generate one secret guessable noun and 3 related clue stories/descriptions for Level ${currentLevel}.
 
+STRICT QUALITY CONSTRAINTS:
+
+1. ANTI-REPETITION:
+You MUST generate a highly unique, unpredictable secret word and story every single time. Avoid generic words like "apple", "key", "car" and instead use deeply engaging, rich context words.
+${excludeWords.length > 0 ? `Additionally, you MUST NOT generate any of the following previously used/solved words:\n[${excludeWords.map(w => `"${w}"`).join(", ")}]` : ""}
+
+2. PERFECT SPELLING & GRAMMAR:
+You are an elite English novelist. Before returning the JSON, you MUST double-check the 'story' and 'clues' fields for typos, broken English, or spelling mistakes. All words must be spelled perfectly according to standard English dictionaries.
+(Note: In the JSON response schema below, these correspond to the items within the "stories" array.)
+
+3. VARIETY:
+Rotate between different storytelling genres (e.g., Noir Detective, Cyberpunk Mystery, Space Exploration, Ancient Fantasy) so the game feels fresh every time. Select one specific genre (such as Noir Detective, Cyberpunk Mystery, Space Exploration, Ancient Fantasy, Steampunk Adventure, Gothic Horror, or Mythological Tale) and write all 3 clue stories in the style of that genre.
+
+4. LEVEL-WISE DIFFICULTY SCALING:
+The generation MUST strictly scale in difficulty based on the current level (Level ${currentLevel}):
+- If Level is 1-5 (Easy):
+  * Secret Word: Common, everyday secret words (but avoid overused ones like "apple", "key", "car").
+  * Clue Stories: Very obvious, clear, helpful stories/clues describing physical appearance or straightforward utility.
+- If Level is 6-15 (Medium):
+  * Secret Word: Moderately challenging words (e.g., slightly more abstract, natural, or technical nouns like "glacier", "gravity", "fossil", "silhouette", "lighthouse").
+  * Clue Stories: Slightly cryptic, atmospheric mystery stories that require some deductive reasoning.
+- If Level is 16+ (Hard):
+  * Secret Word: Complex, rare, or deeply semantic words (e.g., advanced abstract concepts or philosophical terms like "paradox", "nostalgia", "serendipity", "equilibrium", "harmony", "mirage").
+  * Clue Stories: Highly enigmatic, challenging clues that require intense lateral thinking.
+
 Requirements:
 1. The response must be a valid raw JSON object matching the schema below.
 2. The "word" must be a single, common noun, all lowercase, between 3 to 20 letters.
-3. The "stories" must be an array of exactly 3 distinct clue stories or descriptions (each 1-2 sentences) that describe or strongly relate to the secret word, arranged in descending difficulty (from hard/broad to easy/specific):
+3. The "stories" must be an array of exactly 3 distinct clue stories or descriptions (each 1-2 sentences) that describe or strongly relate to the secret word, written in the style of the chosen genre and arranged in descending difficulty (from hard/broad to easy/specific):
    - Clue 1 (index 0): The hardest clue. Very broad, abstract, or indirect description.
    - Clue 2 (index 1): Medium difficulty. Includes some specific features, utility, or context.
    - Clue 3 (index 2): The easiest clue. An obvious, common association, or direct physical description that makes it very easy to understand/guess.
 4. STRICT RULE: None of the stories must EVER contain the secret word itself or any of its direct synonyms.
-5. Difficulty guidelines for the secret word itself:
-   - Levels 1-5: Very simple, everyday physical objects (e.g., "apple", "guitar", "ocean").
-   - Levels 6-15: Slightly more abstract or less common nouns (e.g., "glacier", "gravity", "mystery").
-   - Levels 16+: Abstract, conceptual, or challenging nouns (e.g., "paradox", "nostalgia", "harmony").
 
 Return ONLY a valid JSON object matching this schema. Do not include markdown code fences, explanation, or extra text.
 
@@ -271,7 +317,7 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
       parsed = JSON.parse(jsonText);
     } catch {
       console.error("[contextle] Gemini returned invalid JSON:", rawText);
-      return useFallbackWord(adminClient, user.id, currentLevel);
+      return useFallbackWord(adminClient, user.id, currentLevel, excludeWords);
     }
 
     const cleanWord = sanitizeWord(parsed.word);
@@ -279,7 +325,7 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
 
     if (!isValidWord(cleanWord) || stories.length < 2) {
       console.error("[contextle] Sanity checks failed for generated pair:", parsed);
-      return useFallbackWord(adminClient, user.id, currentLevel);
+      return useFallbackWord(adminClient, user.id, currentLevel, excludeWords);
     }
 
     // Serialize stories array as a JSON string to fit in TEXT column
@@ -310,12 +356,17 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
 
   } catch (error) {
     console.warn("[contextle] Gemini generation failed. Falling back to local vocabulary. Details:", error);
-    return useFallbackWord(adminClient, user.id, currentLevel);
+    return useFallbackWord(adminClient, user.id, currentLevel, excludeWords);
   }
 }
 
 // ── Helper to pick and save a static fallback word/stories pair ──────────────
-async function useFallbackWord(adminClient: any, userId: string, level: number): Promise<NextResponse> {
+async function useFallbackWord(
+  adminClient: any,
+  userId: string,
+  level: number,
+  excludeWords: string[] = []
+): Promise<NextResponse> {
   let list = EASY_PAIRS;
   if (level >= 6 && level <= 15) {
     list = MEDIUM_PAIRS;
@@ -323,7 +374,12 @@ async function useFallbackWord(adminClient: any, userId: string, level: number):
     list = HARD_PAIRS;
   }
 
-  const fallback = list[Math.floor(Math.random() * list.length)];
+  let filteredList = list.filter(pair => !excludeWords.includes(pair.word));
+  if (filteredList.length === 0) {
+    filteredList = list;
+  }
+
+  const fallback = filteredList[Math.floor(Math.random() * filteredList.length)];
   const serializedStories = JSON.stringify(fallback.stories);
 
   const { error: updateError } = await adminClient

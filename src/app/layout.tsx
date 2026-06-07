@@ -150,11 +150,10 @@ export default function RootLayout({
     >
       <head>
         {/* Google AdSense */}
-        <Script
+        <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8175902243591443"
           crossOrigin="anonymous"
-          strategy="afterInteractive"
         />
       </head>
       <body
