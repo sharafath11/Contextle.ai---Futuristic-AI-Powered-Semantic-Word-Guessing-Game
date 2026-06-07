@@ -831,7 +831,7 @@ export default function HomePage() {
         <footer className="border-t border-white/[0.03] py-5 mt-auto">
           <div className="max-w-2xl mx-auto px-4">
             <p className="text-[10px] text-neutral-600 font-medium text-center mb-3">
-              SaaS semantic evaluator powered by <span className="text-neutral-500">Gemini-2.0-Flash</span>.
+              <span className="text-neutral-500">contextle.ai</span>
             </p>
             <div className="flex items-center justify-center gap-4 text-[10px] text-neutral-600">
               <a href="/about" className="hover:text-cyan-400 transition-colors">About</a>
