@@ -15,7 +15,8 @@ export async function GET() {
 
     const adminClient = await createAdminClient();
     
-    // 1. Try to fetch profile using adminClient to bypass any client-side RLS issues
+    // 1. Try to fetch profile using adminClient to bypass any client-side RLS issues.
+    // We only select the columns needed for the profile state.
     let { data: profile, error: fetchError } = await adminClient
       .from("profiles")
       .select("id, email, display_name, current_level, active_word, current_story, updated_at")
@@ -52,7 +53,15 @@ export async function GET() {
       profile = insertedProfile;
     }
 
-    return NextResponse.json({ success: true, profile });
+    // ── SECURITY: Mask active_word to prevent client-side inspection / cheating ──
+    // The frontend only checks if active_word is truthy/falsy to toggle the UI,
+    // so we return "HIDDEN_ACTIVE_WORD" if it exists, concealing the actual secret word.
+    const clientProfile = {
+      ...profile,
+      active_word: profile.active_word ? "HIDDEN_ACTIVE_WORD" : null
+    };
+
+    return NextResponse.json({ success: true, profile: clientProfile });
   } catch (error) {
     console.error("[contextle] GET /api/profile error:", error);
     return NextResponse.json(
