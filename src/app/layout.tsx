@@ -114,7 +114,9 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
 
   // ── Verification ──────────────────────────────────────────────────────────
-  // verification: { google: "YOUR_GSC_VERIFICATION_TOKEN" },
+  verification: {
+    google: 'google-site-verification: google839c9735c5dad756.html',
+  },
   other: {
     "google-adsense-account": "ca-pub-8175902243591443",
   },
