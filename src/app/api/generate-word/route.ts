@@ -139,7 +139,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     })
     .eq("id", user.id)
     .is("active_word", null)
-    .select("current_level, active_word, current_story");
+    .select("current_level, active_word, current_story, updated_at");
 
   let profile = lockProfile && lockProfile.length > 0 ? lockProfile[0] : null;
 
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Fetch the profile to see if it is already generating or has a word
     const { data: existingProfile, error: fetchError } = await adminClient
       .from("profiles")
-      .select("current_level, active_word, current_story")
+      .select("current_level, active_word, current_story, updated_at")
       .eq("id", user.id)
       .single();
 
@@ -156,14 +156,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (existingProfile.active_word === "generating") {
-      return NextResponse.json(
-        { success: false, error: "A word is already being generated for you. Please wait." },
-        { status: 409 }
-      );
+      const updatedAt = existingProfile.updated_at ? new Date(existingProfile.updated_at).getTime() : 0;
+      const lockAgeMs = Date.now() - updatedAt;
+
+      // Break stuck serverless timeout locks older than 2 minutes (120,000ms)
+      if (lockAgeMs > 120000) {
+        console.warn("[contextle] Auto-breaking stuck serverless lock older than 2 minutes.");
+        const { data: breakLockProfile } = await adminClient
+          .from("profiles")
+          .update({
+            active_word: "generating",
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", user.id)
+          .select("current_level, active_word, current_story, updated_at");
+
+        if (breakLockProfile && breakLockProfile.length > 0) {
+          profile = breakLockProfile[0];
+        } else {
+          profile = existingProfile;
+        }
+      } else {
+        return NextResponse.json(
+          { success: false, error: "A word is already being generated for you. Please wait." },
+          { status: 409 }
+        );
+      }
     }
 
     // If a word is already generated, return it immediately to resolve the race condition
-    if (existingProfile.active_word && existingProfile.current_story) {
+    if (profile === null && existingProfile.active_word && existingProfile.current_story) {
       try {
         const stories = JSON.parse(existingProfile.current_story);
         return NextResponse.json({ success: true, stories });
@@ -172,7 +194,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    profile = existingProfile;
+    if (!profile) {
+      profile = existingProfile;
+    }
   }
 
   let excludeWords: string[] = [];
@@ -193,7 +217,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const currentLevel = reqLevel !== null ? reqLevel : profile.current_level;
 
-  // 3. Fetch played words server-side from played_words table (Optimized: limit to last 100)
+  // 3. Fetch played words server-side from played_words table (Optimized: limit to last 25)
   let dbPlayedWords: string[] = [];
   try {
     const { data: playedData } = await adminClient
@@ -201,7 +225,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .select("word")
       .eq("user_id", user.id)
       .order("played_at", { ascending: false })
-      .limit(100);
+      .limit(25);
     if (playedData) {
       dbPlayedWords = playedData.map(row => row.word.trim().toLowerCase());
     }
@@ -257,7 +281,8 @@ Requirements:
           systemInstruction: "You are generating content for an AI word-guessing game. Return ONLY a valid raw JSON object matching the requested schema. Never return markdown blocks, explanations, or code fences.",
         });
 
-        const result = await model.generateContent(prompt);
+        // Set request options: timeout after 8000ms
+        const result = await model.generateContent(prompt, { timeout: 8000 });
         const rawText = result.response.text().trim();
         const jsonText = rawText
           .replace(/^```(?:json)?\s*/i, "")
@@ -319,6 +344,9 @@ Requirements:
     let attempts = 0;
     const maxAttempts = 2;
     while (attempts < maxAttempts) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second request timeout
+
       try {
         console.log(`[contextle] Tier 2: Fetching from Groq API (Attempt ${attempts + 1})...`);
         const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -342,6 +370,7 @@ Requirements:
             temperature: 0.7,
             response_format: { type: "json_object" },
           }),
+          signal: controller.signal
         });
 
         if (!response.ok) {
@@ -399,6 +428,8 @@ Requirements:
       } catch (groqError) {
         attempts++;
         console.warn(`[contextle] Groq attempt ${attempts} failed.`, groqError);
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
   }
