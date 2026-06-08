@@ -207,13 +207,31 @@ function sanitizeStoryText(text: string): string {
     return `${prefix} ${suffix}`;
   });
 
-  // Handle specific typos/merges requested by user
+  // Handle specific typos/merges
   cleaned = cleaned.replace(/\baboveethe\b/gi, "above the");
   cleaned = cleaned.replace(/\babovethe\b/gi, "above the");
-  cleaned = cleaned.replace(/\bwouldd+\b/gi, "would");
-  cleaned = cleaned.replace(/\bcouldd+\b/gi, "could");
-  cleaned = cleaned.replace(/\bshouldd+\b/gi, "should");
-  cleaned = cleaned.replace(/\bshadoww+\b/gi, "shadow");
+  cleaned = cleaned.replace(/\b(to|in|on|for|with|of|and|is|at|from|by)the\b/gi, "$1 the");
+
+  // Fix repeated trailing characters on common words
+  cleaned = cleaned.replace(/\b(would)d+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(could)d+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(should)d+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(shadow)w+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(and)d+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(from)m+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(with)h+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(that)t+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(this)s+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(they)y+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(their)r+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(there)e+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(for)r+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(it)t+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(is)s+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(here)e+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(what)t+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(when)n+\b/gi, "$1");
+  cleaned = cleaned.replace(/\b(where)e+\b/gi, "$1");
 
   return cleaned;
 }
