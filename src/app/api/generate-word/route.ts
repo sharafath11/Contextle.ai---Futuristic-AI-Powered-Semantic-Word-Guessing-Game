@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, createAdminClient } from "@/utils/supabase/server";
 
-// ── എമർജൻസി ലോക്കൽ ബാക്ക്-അപ്പ് വാക്കുകൾ (എല്ലാ എഐകളും പരാജയപ്പെട്ടാൽ മാത്രം ഉപയോഗിക്കാൻ) ──
+// ── Emergency Local Back-up Words (Only used if all AI generation fails) ──
 const EASY_PAIRS = [
   { 
     word: 'apple', 
@@ -61,7 +61,7 @@ const HARD_PAIRS = [
   }
 ];
 
-// രഹസ്യ വാക്ക് ഡാറ്റാബേസിനായി ക്ലീൻ ചെയ്യാൻ മാത്രം ഉപയോഗിക്കുന്നു (സ്റ്റോറികളിൽ ഇത് തൊടില്ല)
+// Only used to clean the secret word for the database (stories are untouched)
 function sanitizeWord(raw: string): string {
   return raw.trim().toLowerCase().replace(/[^a-z]/g, "");
 }
@@ -74,7 +74,7 @@ function isValidWord(word: string): boolean {
 //  POST /api/generate-word
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  // 1. സുപർബേസ് ഓതന്റിക്കേഷൻ പരിശോധന
+  // 1. Verify Supabase session authentication
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Body empty
   }
 
-  // 2. യൂസറുടെ നിലവിലെ ലെവൽ എടുക്കുക
+  // 2. Fetch user's current level
   const adminClient = await createAdminClient();
   const { data: profile, error: profileError } = await adminClient
     .from("profiles")
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const currentLevel = reqLevel !== null ? reqLevel : profile.current_level;
 
-  // പക്കാ ഗ്രാമറോടെയും സ്പേസിങ്ങോടെയും JSON തരാൻ എഐയോട് ആവശ്യപ്പെടുന്ന ശക്തമായ പ്രോംപ്റ്റ്
+  // System prompt requiring JSON response with flawless spelling and grammar
   const prompt = `
 You are generating content for an AI word-guessing game.
 Task: Generate one secret guessable noun and 3 related clue stories/descriptions for Level ${currentLevel}.
@@ -151,7 +151,7 @@ Requirements:
 
   const apiKey = process.env.GEMINI_API_KEY;
 
-  // ── TIER 1: GOOGLE GEMINI (പ്രൈമറി എപിഐ) ──────────────────────────────────
+  // ── TIER 1: GOOGLE GEMINI (Primary API) ──────────────────────────────────
   if (apiKey) {
     try {
       console.log("[contextle] Tier 1: Trying Direct Gemini SDK...");
@@ -159,7 +159,7 @@ Requirements:
       const model = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
         generationConfig: {
-          temperature: 0.7, // ലോവർ ടെമ്പറേച്ചർ എഐ തെറ്റുകൾ വരുത്തുന്നത് പൂർണ്ണമായി തടയും
+          temperature: 0.7, // Lower temperature helps prevent AI typos
           responseMimeType: "application/json",
         },
       });
@@ -213,7 +213,7 @@ Requirements:
     }
   }
 
-  // ── TIER 2: GROQ API (സെക്കൻഡറി എപിഐ) ──────────────────────────────────────
+  // ── TIER 2: GROQ API (Secondary API) ──────────────────────────────────────
   const groqApiKey = process.env.GROQ_API_KEY || process.env.GROK_API_KEY;
   if (groqApiKey) {
     try {
@@ -289,12 +289,12 @@ Requirements:
     }
   }
 
-  // ── TIER 3: EMERGENCY LOCAL FALLBACK (എല്ലാ എപിഐയും തകർന്നാൽ അവസാന ആശ്രയം) ──
+  // ── TIER 3: EMERGENCY LOCAL FALLBACK (Fallback of last resort if all APIs fail) ──
   console.warn("[contextle] All AI routes failed or keys missing. Using local emergency fallback.");
   return getFallbackWord(adminClient, user.id, currentLevel, excludeWords);
 }
 
-// ── എമർജൻസി ലോക്കൽ വാക്ക് സെലക്ഷൻ ഫംഗ്ഷൻ ──────────────────────────────────
+// ── Emergency Local Word Selection Function ──────────────────────────────────
 async function getFallbackWord(
   adminClient: SupabaseClient,
   userId: string,
