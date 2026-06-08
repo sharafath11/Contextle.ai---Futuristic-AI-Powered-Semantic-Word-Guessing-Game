@@ -70,7 +70,17 @@ async function checkDbRateLimit(
   }
 }
 
-
+// ── Redact Secret Word (Turn Leaks into Fill-in-the-Blank Clues) ──
+function redactSecretWord(story: string, secretWord: string): string {
+  // Redact the exact word
+  let redacted = story.replace(new RegExp(`\\b${secretWord}\\b`, "gi"), "___");
+  // Redact common plural/suffix forms
+  redacted = redacted.replace(new RegExp(`\\b${secretWord}s\\b`, "gi"), "___s");
+  redacted = redacted.replace(new RegExp(`\\b${secretWord}es\\b`, "gi"), "___es");
+  redacted = redacted.replace(new RegExp(`\\b${secretWord}ing\\b`, "gi"), "___ing");
+  redacted = redacted.replace(new RegExp(`\\b${secretWord}ed\\b`, "gi"), "___ed");
+  return redacted;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/generate-word - API route to generate a new word
@@ -268,6 +278,7 @@ Never return code fences.`,
         // Set request options: timeout after 8000ms
         const result = await model.generateContent(prompt, { timeout: 8000 });
         const rawText = result.response.text().trim();
+        console.log("[contextle][API] Gemini raw response:", rawText);
 
         const jsonText = rawText
           .replace(/^```(?:json)?\s*/i, "")
@@ -276,18 +287,24 @@ Never return code fences.`,
         let parsed: { word: string; stories: string[] };
         try {
           parsed = JSON.parse(jsonText);
+          console.log("[contextle][API] Gemini parsed JSON:", parsed);
         } catch {
           throw new Error("Gemini returned invalid JSON: " + rawText);
         }
 
-        const cleanWord = parsed.word ? parsed.word.trim().toLowerCase() : "error";
-        let stories = parsed.stories || [];
+        const cleanWord = sanitizeWord(parsed.word);
+        // Redact AI word leaks instead of rejecting them (saves API quota)
+        let stories = (parsed.stories || []).map((s: string) => redactSecretWord(s.trim(), cleanWord)).filter(Boolean);
 
-        if (!parsed.word || !Array.isArray(parsed.stories)) {
-          throw new Error("Missing word or stories array in generated JSON");
-        }
+
 
         const serializedStories = JSON.stringify(stories);
+        
+        console.log("[contextle][DB] Saving Gemini data to profile:", {
+          id: user.id,
+          active_word: cleanWord,
+          stories_count: stories.length
+        });
 
         const { error: updateError } = await adminClient
           .from("profiles")
@@ -365,6 +382,7 @@ Never return code fences.`,
 
         const data = await response.json();
         const rawText = data.choices?.[0]?.message?.content?.trim();
+        console.log("[contextle][API] Groq raw response:", rawText);
 
         if (!rawText) {
           throw new Error("Groq API returned empty content.");
@@ -375,15 +393,21 @@ Never return code fences.`,
           .replace(/\s*```$/, "");
 
         const parsed: { word: string; stories: string[] } = JSON.parse(jsonText);
+        console.log("[contextle][API] Groq parsed JSON:", parsed);
 
-        const cleanWord = parsed.word ? parsed.word.trim().toLowerCase() : "error";
-        let stories = parsed.stories || [];
+        const cleanWord = sanitizeWord(parsed.word);
+        // Redact AI word leaks instead of rejecting them (saves API quota)
+        let stories = (parsed.stories || []).map((s: string) => redactSecretWord(s.trim(), cleanWord)).filter(Boolean);
 
-        if (!parsed.word || !Array.isArray(parsed.stories)) {
-          throw new Error("Missing word or stories array in Groq generated JSON");
-        }
+
 
         const serializedStories = JSON.stringify(stories);
+
+        console.log("[contextle][DB] Saving Groq data to profile:", {
+          id: user.id,
+          active_word: cleanWord,
+          stories_count: stories.length
+        });
 
         const { error: updateError } = await adminClient
           .from("profiles")

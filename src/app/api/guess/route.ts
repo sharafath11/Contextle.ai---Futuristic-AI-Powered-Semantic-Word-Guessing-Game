@@ -35,10 +35,7 @@ function sanitizeWord(raw: string): string {
   return raw.trim().toLowerCase().replace(/[^a-z\s'-]/g, "").substring(0, 64);
 }
 
-// ── Validate: only single words (no phrases) ─────────────────────────────────
-function isValidWord(word: string): boolean {
-  return /^[a-z'-]{1,64}$/.test(word);
-}
+
 
 // Fallback: character overlap similarity if Gemini API key rate limits (429) ───
 function calculateFallbackSimilarity(guess: string, secretWord: string): { rank: number; similarityPercentage: number } {
@@ -87,7 +84,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // ── 3. Parse & Validate Body ───────────────────────────────────────────────
-  let body: { word?: unknown; level?: unknown };
+  let body: { word?: unknown; level?: unknown; guessedWords?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -105,13 +102,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const guess = sanitizeWord(body.word);
-  if (!isValidWord(guess)) {
+  const guessedWords = Array.isArray(body.guessedWords) ? body.guessedWords : [];
+  if (guessedWords.includes(guess)) {
     return NextResponse.json(
       {
         success: false,
-        error: "Please enter a single word containing only letters.",
+        error: `Already guessed "${guess}"`,
       },
-      { status: 422 }
+      { status: 400 }
     );
   }
 
@@ -245,6 +243,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation.
 
     const result = await model.generateContent(prompt);
     const rawText = result.response.text().trim();
+    console.log("[contextle][API] Guess Gemini raw response:", rawText);
 
     // Strip potential markdown code fences
     const jsonText = rawText
@@ -258,6 +257,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation.
     };
     try {
       parsed = JSON.parse(jsonText);
+      console.log("[contextle][API] Guess Gemini parsed JSON:", parsed);
     } catch {
       console.error("[contextle] Gemini returned non-JSON:", rawText);
       return NextResponse.json(

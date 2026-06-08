@@ -269,24 +269,6 @@ function SuccessModal({ word, guessCount, newLevel, onNext }: { word: string; gu
   );
 }
 
-// ─── Typewriter Component ────────────────────────────────────────────────────
-function Typewriter({ text, speed = 25 }: { text: string; speed?: number }) {
-  const [displayed, setDisplayed] = useState("");
-  useEffect(() => {
-    setDisplayed("");
-    let i = 0;
-    const interval = setInterval(() => {
-      setDisplayed((prev) => prev + text.charAt(i));
-      i++;
-      if (i >= text.length) {
-        clearInterval(interval);
-      }
-    }, speed);
-    return () => clearInterval(interval);
-  }, [text, speed]);
-
-  return <span>{displayed}</span>;
-}
 
 function parseStories(rawStory: string | null | undefined): string[] {
   if (!rawStory) return [];
@@ -396,6 +378,12 @@ export default function HomePage() {
     }
   }, [guesses, profile]);
 
+  useEffect(() => {
+    if (profile?.current_story) {
+      console.log("[contextle][Frontend] Loaded stories:", parseStories(profile.current_story));
+    }
+  }, [profile?.current_story]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -424,7 +412,10 @@ export default function HomePage() {
         }),
       });
       const data = await res.json();
+      console.log("[contextle][Frontend] generate-word API response:", data);
+      
       if (res.ok && data.success) {
+        console.log("[contextle][Frontend] Stories generated successfully:", data.stories);
         setActiveClueIndex(0);
         setDropdownOpen(false);
         // Fetch fresh profile state (contains active_word)
@@ -446,19 +437,23 @@ export default function HomePage() {
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!user) return;
-    const word = inputValue.trim().toLowerCase();
-    if (!word || isLoading || wonWord || !profile?.active_word) return;
-    if (guesses.some((g) => g.word === word)) { setError(`Already guessed "${word}"`); return; }
-
+    const word = inputValue;
+    if (!word.trim() || isLoading || wonWord || !profile?.active_word) return;
+    
     setError(null);
     setIsLoading(true);
     try {
       const res = await fetch("/api/guess", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ word, level: profile?.current_level }),
+        body: JSON.stringify({ 
+          word, 
+          level: profile?.current_level,
+          guessedWords: guesses.map(g => g.word)
+        }),
       });
       const data: GuessResponse & { error?: string } = await res.json();
+      console.log("[contextle][Frontend] guess API response:", data);
       if (!res.ok || !data.success) { setError(data.error ?? "Evaluation failed."); return; }
 
       const entry: GuessEntry = { ...data, id: `${word}-${Date.now()}`, timestamp: Date.now() };
@@ -686,7 +681,7 @@ export default function HomePage() {
               )}
 
               <p className="text-neutral-300 text-xs leading-relaxed font-medium italic min-h-[50px]">
-                <Typewriter key={activeClueIndex} text={parseStories(profile.current_story)[activeClueIndex] || ""} speed={20} />
+                {parseStories(profile.current_story)[activeClueIndex] || ""}
               </p>
 
               <div className="mt-4 pt-3 border-t border-white/[0.03] flex items-center justify-between text-[9px] text-neutral-500 font-mono">
@@ -750,10 +745,6 @@ export default function HomePage() {
                     onChange={(e) => { setInputValue(e.target.value); setError(null); }}
                     placeholder="Type a guess word..."
                     disabled={isLoading || !!wonWord}
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="none"
-                    spellCheck={false}
                     maxLength={64}
                     className="flex-1 bg-transparent text-white placeholder-neutral-600 text-xs outline-none py-2 disabled:opacity-40 font-medium"
                   />
