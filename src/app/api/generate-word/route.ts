@@ -183,6 +183,41 @@ function isValidWord(word: string): boolean {
   return /^[a-z]{3,20}$/.test(word);
 }
 
+// ── Clean and sanitize story text from common AI artifacts ───────────────────
+function sanitizeStoryText(text: string): string {
+  if (!text) return text;
+
+  // Fix merged prefix helper
+  let cleaned = text.replace(/\b(A|In|The|It|Is)([a-z]+)\b/g, (match, prefix, suffix) => {
+    const lowerWord = match.toLowerCase();
+    // Exclude common valid words to prevent false positives
+    const exclusions = new Set([
+      "their", "them", "then", "there", "these", "they", "theme", "theory", "theatre", "thermal", "therapy",
+      "into", "inside", "instead", "instant", "industry", "infant", "insect", "insert", "instruct", "instrument",
+      "its", "itself", "italy", "item", "island", "issue", "isn't", "isnt",
+      "an", "as", "at", "all", "are", "about", "above", "after", "against", "along", "among", "around", "always",
+      "another", "answer", "any", "apply", "apple", "agent", "action", "animal", "author", "art", "area", "arm", "arrive"
+    ]);
+    
+    if (exclusions.has(lowerWord)) {
+      return match;
+    }
+    
+    // Otherwise, split them
+    return `${prefix} ${suffix}`;
+  });
+
+  // Handle specific typos/merges requested by user
+  cleaned = cleaned.replace(/\baboveethe\b/gi, "above the");
+  cleaned = cleaned.replace(/\babovethe\b/gi, "above the");
+  cleaned = cleaned.replace(/\bwouldd+\b/gi, "would");
+  cleaned = cleaned.replace(/\bcouldd+\b/gi, "could");
+  cleaned = cleaned.replace(/\bshouldd+\b/gi, "should");
+  cleaned = cleaned.replace(/\bshadoww+\b/gi, "shadow");
+
+  return cleaned;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/generate-word
 // ─────────────────────────────────────────────────────────────────────────────
@@ -267,6 +302,8 @@ The generation MUST strictly scale in difficulty based on the current level (Lev
   * Secret Word: Complex, rare, or deeply semantic words (e.g., advanced abstract concepts or philosophical terms like "paradox", "nostalgia", "serendipity", "equilibrium", "harmony", "mirage").
   * Clue Stories: Highly enigmatic, challenging clues that require intense lateral thinking.
 
+5. CRITICAL: Avoid token merging. Ensure proper spacing between words. Never merge articles or prepositions with neighboring nouns (e.g., do NOT output 'Amusician', 'Afuturistic', or 'aboveethe'). Check your output sentence by sentence before returning the JSON.
+
 Requirements:
 1. The response must be a valid raw JSON object matching the schema below.
 2. The "word" must be a single, common noun, all lowercase, between 3 to 20 letters.
@@ -303,7 +340,7 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
       generationConfig: {
-        temperature: 1.0,
+        temperature: 0.7,
         responseMimeType: "application/json",
       },
     });
@@ -324,7 +361,9 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
     }
 
     const cleanWord = sanitizeWord(parsed.word);
-    const stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+    const stories = (parsed.stories || [])
+      .map((s: string) => sanitizeStoryText(s.trim()))
+      .filter(Boolean);
 
     if (!isValidWord(cleanWord) || stories.length < 2) {
       throw new Error("Sanity checks failed for generated pair");
@@ -381,7 +420,7 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
               content: prompt,
             },
           ],
-          temperature: 1.0,
+          temperature: 0.7,
           response_format: { type: "json_object" },
         }),
       });
@@ -403,7 +442,9 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
 
       const parsed: { word: string; stories: string[] } = JSON.parse(jsonText);
       const cleanWord = sanitizeWord(parsed.word);
-      const stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+      const stories = (parsed.stories || [])
+        .map((s: string) => sanitizeStoryText(s.trim()))
+        .filter(Boolean);
 
       if (!isValidWord(cleanWord) || stories.length < 2) {
         throw new Error("Sanity checks failed for Groq generated pair.");
