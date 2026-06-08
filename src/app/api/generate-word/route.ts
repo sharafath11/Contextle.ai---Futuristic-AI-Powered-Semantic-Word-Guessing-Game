@@ -286,6 +286,7 @@ ${excludeWords.length > 0 ? `Additionally, you MUST NOT generate any of the foll
 2. PERFECT SPELLING & GRAMMAR:
 You are an elite English novelist. Before returning the JSON, you MUST double-check the 'story' and 'clues' fields for typos, broken English, or spelling mistakes. All words must be spelled perfectly according to standard English dictionaries.
 (Note: In the JSON response schema below, these correspond to the items within the "stories" array.)
+CRITICAL: Avoid token merging. Ensure proper spacing between words. Never merge articles or prepositions with neighboring nouns (e.g., do NOT output 'Amusician', 'Afuturistic', or 'aboveethe'). Check your output sentence by sentence.
 
 3. VARIETY:
 Rotate between different storytelling genres (e.g., Noir Detective, Cyberpunk Mystery, Space Exploration, Ancient Fantasy) so the game feels fresh every time. Select one specific genre (such as Noir Detective, Cyberpunk Mystery, Space Exploration, Ancient Fantasy, Steampunk Adventure, Gothic Horror, or Mythological Tale) and write all 3 clue stories in the style of that genre.
@@ -301,8 +302,6 @@ The generation MUST strictly scale in difficulty based on the current level (Lev
 - If Level is 16+ (Hard):
   * Secret Word: Complex, rare, or deeply semantic words (e.g., advanced abstract concepts or philosophical terms like "paradox", "nostalgia", "serendipity", "equilibrium", "harmony", "mirage").
   * Clue Stories: Highly enigmatic, challenging clues that require intense lateral thinking.
-
-5. CRITICAL: Avoid token merging. Ensure proper spacing between words. Never merge articles or prepositions with neighboring nouns (e.g., do NOT output 'Amusician', 'Afuturistic', or 'aboveethe'). Check your output sentence by sentence before returning the JSON.
 
 Requirements:
 1. The response must be a valid raw JSON object matching the schema below.
@@ -365,7 +364,7 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
       .map((s: string) => sanitizeStoryText(s.trim()))
       .filter(Boolean);
 
-    if (!isValidWord(cleanWord) || stories.length < 2) {
+    if (!isValidWord(cleanWord) || stories.length !== 3) {
       throw new Error("Sanity checks failed for generated pair");
     }
 
@@ -446,7 +445,7 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
         .map((s: string) => sanitizeStoryText(s.trim()))
         .filter(Boolean);
 
-      if (!isValidWord(cleanWord) || stories.length < 2) {
+      if (!isValidWord(cleanWord) || stories.length !== 3) {
         throw new Error("Sanity checks failed for Groq generated pair.");
       }
 
