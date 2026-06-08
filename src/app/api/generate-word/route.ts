@@ -70,26 +70,7 @@ async function checkDbRateLimit(
   }
 }
 
-// Trim and lowercase the raw AI word (no aggressive regex replacement to prevent corruptions)
-function sanitizeWord(raw: string): string {
-  return raw.trim().toLowerCase();
-}
 
-function isValidWord(word: string): boolean {
-  return /^[a-z]{3,20}$/.test(word);
-}
-
-// ── Redact Secret Word (Turn Leaks into Fill-in-the-Blank Clues) ──
-function redactSecretWord(story: string, secretWord: string): string {
-  // Redact the exact word
-  let redacted = story.replace(new RegExp(`\\b${secretWord}\\b`, "gi"), "___");
-  // Redact common plural/suffix forms
-  redacted = redacted.replace(new RegExp(`\\b${secretWord}s\\b`, "gi"), "___s");
-  redacted = redacted.replace(new RegExp(`\\b${secretWord}es\\b`, "gi"), "___es");
-  redacted = redacted.replace(new RegExp(`\\b${secretWord}ing\\b`, "gi"), "___ing");
-  redacted = redacted.replace(new RegExp(`\\b${secretWord}ed\\b`, "gi"), "___ed");
-  return redacted;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/generate-word - API route to generate a new word
@@ -299,12 +280,11 @@ Never return code fences.`,
           throw new Error("Gemini returned invalid JSON: " + rawText);
         }
 
-        const cleanWord = sanitizeWord(parsed.word);
-        // Redact AI word leaks instead of rejecting them (saves API quota)
-        let stories = (parsed.stories || []).map((s: string) => redactSecretWord(s.trim(), cleanWord)).filter(Boolean);
+        const cleanWord = parsed.word ? parsed.word.trim().toLowerCase() : "error";
+        let stories = parsed.stories || [];
 
-        if (!isValidWord(cleanWord) || stories.length !== 3) {
-          throw new Error("Sanity checks failed for generated pair");
+        if (!parsed.word || !Array.isArray(parsed.stories)) {
+          throw new Error("Missing word or stories array in generated JSON");
         }
 
         const serializedStories = JSON.stringify(stories);
@@ -396,12 +376,11 @@ Never return code fences.`,
 
         const parsed: { word: string; stories: string[] } = JSON.parse(jsonText);
 
-        const cleanWord = sanitizeWord(parsed.word);
-        // Redact AI word leaks instead of rejecting them (saves API quota)
-        let stories = (parsed.stories || []).map((s: string) => redactSecretWord(s.trim(), cleanWord)).filter(Boolean);
+        const cleanWord = parsed.word ? parsed.word.trim().toLowerCase() : "error";
+        let stories = parsed.stories || [];
 
-        if (!isValidWord(cleanWord) || stories.length !== 3) {
-          throw new Error("Sanity checks failed for Groq generated pair.");
+        if (!parsed.word || !Array.isArray(parsed.stories)) {
+          throw new Error("Missing word or stories array in Groq generated JSON");
         }
 
         const serializedStories = JSON.stringify(stories);
