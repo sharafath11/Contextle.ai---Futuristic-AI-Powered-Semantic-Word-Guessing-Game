@@ -3,11 +3,12 @@
 //  Secure server-side Route Handler:
 //   1. Validates user session via Supabase
 //   2. Fetches current level's secret word from DB
-//   3. Evaluates semantic similarity via OpenRouter (server-side only)
+//   3. Evaluates semantic similarity via Gemini (server-side only)
 //   4. On correct guess, advances the user to the next level in DB
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient, createAdminClient } from "@/utils/supabase/server";
 import type { GuessResponse } from "@/types/game";
 
@@ -188,10 +189,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // ── 7. OpenRouter API call (server-side only) ──────────────────────────────
-  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
-  if (!openRouterApiKey) {
-    console.warn("[contextle] OPENROUTER_API_KEY is not set. Using fallback similarity.");
+  // ── 7. Gemini API call (server-side only) ──────────────────────────────────
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn("[contextle] GEMINI_API_KEY is not set. Using fallback similarity.");
     const { rank, similarityPercentage } = calculateFallbackSimilarity(guess, secretWord);
     return NextResponse.json<GuessResponse>({
       success: true,
@@ -203,6 +204,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
     const prompt = `
 You are a semantic similarity evaluator for a word-guessing game.
 
@@ -230,36 +234,8 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation.
 }
 `.trim();
 
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${openRouterApiKey}`,
-        "HTTP-Referer": "https://contextle.ai",
-        "X-Title": "Contextle AI"
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        response_format: { type: "json_object" }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const rawText = data.choices?.[0]?.message?.content?.trim();
-
-    if (!rawText) {
-      throw new Error("OpenRouter returned empty content");
-    }
+    const result = await model.generateContent(prompt);
+    const rawText = result.response.text().trim();
 
     // Strip potential markdown code fences
     const jsonText = rawText
@@ -274,7 +250,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation.
     try {
       parsed = JSON.parse(jsonText);
     } catch {
-      console.error("[contextle] OpenRouter returned non-JSON:", rawText);
+      console.error("[contextle] Gemini returned non-JSON:", rawText);
       return NextResponse.json(
         { success: false, error: "AI evaluation failed. Please try again." },
         { status: 502 }
@@ -296,7 +272,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation.
       isCorrect: false,
     });
   } catch (error) {
-    console.warn("[contextle] OpenRouter API error, using fallback similarity metric:", error);
+    console.warn("[contextle] Gemini API error, using fallback similarity metric:", error);
     const { rank, similarityPercentage } = calculateFallbackSimilarity(guess, secretWord);
     return NextResponse.json<GuessResponse>({
       success: true,
