@@ -139,13 +139,7 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
           "X-Title": "Contextle AI"
         },
         body: JSON.stringify({
-          models: [
-            "google/gemini-flash-1.5-free",
-            "meta-llama/llama-3-8b-instruct:free",
-            "mistralai/mistral-7b-instruct:free",
-            "microsoft/phi-3-medium-128k-instruct:free",
-            "qwen/qwen-2-7b-instruct:free"
-          ],
+          model: "google/gemini-flash-1.5-free",
           messages: [
             {
               role: "user",
@@ -197,7 +191,7 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
       console.log("[contextle] Tier 2: Trying Direct Gemini SDK...");
       const genAI = new GoogleGenerativeAI(geminiApiKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: "gemini-1.5-pro",
         generationConfig: {
           temperature: 1.0,
           responseMimeType: "application/json",
