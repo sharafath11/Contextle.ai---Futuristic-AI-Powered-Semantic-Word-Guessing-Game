@@ -404,7 +404,7 @@ export default function HomePage() {
   };
 
   const handleGenerateWord = async () => {
-    if (!user) return;
+    if (!user || generatingWord) return;
     setGeneratingWord(true);
     setError(null);
     try {
