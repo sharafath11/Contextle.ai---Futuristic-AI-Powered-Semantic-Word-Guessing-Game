@@ -238,24 +238,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const currentLevel = reqLevel !== null ? reqLevel : profile.current_level;
 
-  // ── 3. Generate word & clue stories using Gemini API ────────────────────────
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn("[contextle] GEMINI_API_KEY is not set. Falling back to local words.");
-    return getFallbackWord(adminClient, user.id, currentLevel, excludeWords);
-  }
-
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        temperature: 1.0,
-        responseMimeType: "application/json",
-      },
-    });
-
-    const prompt = `
+  const prompt = `
 You are generating content for an AI word-guessing game.
 Task: Generate one secret guessable noun and 3 related clue stories/descriptions for Level ${currentLevel}.
 
@@ -303,7 +286,27 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
     "<easy_clue_story>"
   ]
 }
-    `.trim();
+  `.trim();
+
+  // ── 3. Generate word & clue stories using Gemini API ────────────────────────
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.warn("[contextle] GEMINI_API_KEY is not set. Falling back to Groq / local words.");
+  }
+
+  try {
+    if (!apiKey) {
+      throw new Error("No Gemini API key available.");
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        temperature: 1.0,
+        responseMimeType: "application/json",
+      },
+    });
 
     const result = await model.generateContent(prompt);
     const rawText = result.response.text().trim();
@@ -317,16 +320,14 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
     try {
       parsed = JSON.parse(jsonText);
     } catch {
-      console.error("[contextle] Gemini returned invalid JSON:", rawText);
-      return getFallbackWord(adminClient, user.id, currentLevel, excludeWords);
+      throw new Error("Gemini returned invalid JSON: " + rawText);
     }
 
     const cleanWord = sanitizeWord(parsed.word);
-    const stories = (parsed.stories || []).map(s => s.trim()).filter(Boolean);
+    const stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
 
     if (!isValidWord(cleanWord) || stories.length < 2) {
-      console.error("[contextle] Sanity checks failed for generated pair:", parsed);
-      return getFallbackWord(adminClient, user.id, currentLevel, excludeWords);
+      throw new Error("Sanity checks failed for generated pair");
     }
 
     // Serialize stories array as a JSON string to fit in TEXT column
@@ -356,8 +357,86 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
     });
 
   } catch (error) {
-    console.warn("[contextle] Gemini generation failed. Falling back to local vocabulary. Details:", error);
-    return getFallbackWord(adminClient, user.id, currentLevel, excludeWords);
+    console.warn("[contextle] Gemini generation failed. Trying Tier 2 Groq API. Details:", error);
+    
+    const groqApiKey = process.env.GROQ_API_KEY || process.env.GROK_API_KEY;
+    if (!groqApiKey) {
+      console.warn("[contextle] GROQ_API_KEY/GROK_API_KEY is not set. Falling back to local vocabulary.");
+      return getFallbackWord(adminClient, user.id, currentLevel, excludeWords);
+    }
+
+    try {
+      console.log("[contextle] Tier 2: Fetching from Groq API...");
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${groqApiKey}`,
+        },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+          temperature: 1.0,
+          response_format: { type: "json_object" },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Groq API returned status ${response.status}`);
+      }
+
+      const data = await response.json();
+      const rawText = data.choices?.[0]?.message?.content?.trim();
+
+      if (!rawText) {
+        throw new Error("Groq API returned empty content.");
+      }
+
+      const jsonText = rawText
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/, "");
+
+      const parsed: { word: string; stories: string[] } = JSON.parse(jsonText);
+      const cleanWord = sanitizeWord(parsed.word);
+      const stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+
+      if (!isValidWord(cleanWord) || stories.length < 2) {
+        throw new Error("Sanity checks failed for Groq generated pair.");
+      }
+
+      const serializedStories = JSON.stringify(stories);
+
+      const { error: updateError } = await adminClient
+        .from("profiles")
+        .update({
+          active_word: cleanWord,
+          current_story: serializedStories,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id);
+
+      if (updateError) {
+        console.error("[contextle] Failed to save Groq generated word to profile:", updateError);
+        return NextResponse.json(
+          { success: false, error: "Failed to start game in database." },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        stories,
+      });
+
+    } catch (groqError) {
+      console.warn("[contextle] Groq backup generation failed. Falling back to local vocabulary. Details:", groqError);
+      return getFallbackWord(adminClient, user.id, currentLevel, excludeWords);
+    }
   }
 }
 
