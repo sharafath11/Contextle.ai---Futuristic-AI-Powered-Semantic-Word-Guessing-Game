@@ -3,6 +3,10 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, createAdminClient } from "@/utils/supabase/server";
 import { EASY_PAIRS, MEDIUM_PAIRS, HARD_PAIRS } from "@/lib/fallbackData";
+import nspell from "nspell";
+import enDict from "dictionary-en";
+
+const spell = nspell(Buffer.from(enDict.aff), Buffer.from(enDict.dic));
 
 // ── DB-Backed Rate Limiting (per user, serverless-safe) ──
 async function checkDbRateLimit(
@@ -105,16 +109,20 @@ function doesStoryLeakSecretWord(story: string, secretWord: string): boolean {
   return false;
 }
 
-// ── Obvious Typo Detection ──
-function hasObviousTypos(text: string): boolean {
-  // Regex word boundaries for common tokenization glitches
-  const typos = [
-    "\\bte\\b", "\\bfroo\\b", "\\biwth\\b", "\\badn\\b", "\\bhte\\b", 
-    "\\btaht\\b", "\\btihs\\b", "\\bwiht\\b", "\\bwsa\\b", "\\bI a\\b",
-    "\\bwoudl\\b", "\\bcoudl\\b"
-  ];
-  const regex = new RegExp(`(${typos.join("|")})`, "i");
-  return regex.test(text);
+// ── Dictionary Spell Checker ──
+function hasSpellingErrors(story: string): boolean {
+  const cleanStory = story.replace(/[^a-zA-Z\s'-]/g, " ");
+  const words = cleanStory.split(/\s+/).filter(Boolean);
+
+  for (const word of words) {
+    if (!spell.correct(word)) {
+      if (!spell.correct(word.toLowerCase())) {
+        console.warn(`[contextle] Spellcheck rejected word: ${word}`);
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 // ── AI Self-Correction Pass ──
@@ -130,7 +138,8 @@ async function aiCorrectionPass(apiKey: string, word: string, stories: string[])
     });
 
     const prompt = `
-Correct all spelling, grammar, punctuation, capitalization, and spacing errors in the following 3 clues.
+Fix ALL spelling, grammar, punctuation, capitalization, and spacing mistakes in the following 3 clues.
+If any clue contains an incomplete sentence, repair it.
 Do NOT change the meaning.
 Do NOT reveal the secret word: "${word}".
 Do NOT rewrite the style.
@@ -360,7 +369,7 @@ Requirements:
 
         // Verify AI didn't leak/cheat the secret word inside the stories
         const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
-        const hasTypo = stories.some(s => hasObviousTypos(s));
+        const hasTypo = stories.some(s => hasSpellingErrors(s));
         const hasBadFormatting = stories.some(s => !/^[A-Z]/.test(s) || !/[.!?]$/.test(s));
 
         if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat || hasTypo || hasBadFormatting) {
@@ -461,7 +470,7 @@ Requirements:
 
         // Verify AI didn't leak/cheat the secret word inside the stories
         const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
-        const hasTypo = stories.some(s => hasObviousTypos(s));
+        const hasTypo = stories.some(s => hasSpellingErrors(s));
         const hasBadFormatting = stories.some(s => !/^[A-Z]/.test(s) || !/[.!?]$/.test(s));
 
         if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat || hasTypo || hasBadFormatting) {
