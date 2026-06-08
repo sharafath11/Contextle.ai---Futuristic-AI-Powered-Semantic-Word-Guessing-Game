@@ -175,7 +175,11 @@ const HARD_PAIRS = [
 
 // ── Sanitize: strip non-alpha characters, trim, lowercase ────────────────────
 function sanitizeWord(raw: string): string {
-  return raw.trim().toLowerCase().replace(/[^a-z]/g, "");
+  let word = raw.trim().toLowerCase();
+  // Strip leading articles (a, an, the)
+  word = word.replace(/^(a|an|the)\s+/, "");
+  // Remove symbols but preserve spaces and hyphens to let validation check for multi-word errors
+  return word.replace(/[^a-z\s-]/g, "");
 }
 
 // ── Validate: only single words containing only a-z ─────────────────────────
