@@ -4,22 +4,70 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, createAdminClient } from "@/utils/supabase/server";
 import { EASY_PAIRS, MEDIUM_PAIRS, HARD_PAIRS } from "@/lib/fallbackData";
 
-// ── Rate Limiting (per user, in-memory, resets on cold start) ──
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 5;            // max generations per window
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+// ── DB-Backed Rate Limiting (per user, serverless-safe) ──
+async function checkDbRateLimit(
+  adminClient: SupabaseClient,
+  userId: string,
+  maxRequests = 5,
+  windowMs = 60000
+): Promise<boolean> {
+  try {
+    const now = new Date();
+    const { data: limitData, error } = await adminClient
+      .from("user_rate_limits")
+      .select("request_count, window_start")
+      .eq("user_id", userId)
+      .single();
 
-function isRateLimited(userId: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(userId);
+    if (error && error.code !== "PGRST116") { // PGRST116 is PostgreSQL code for zero rows returned
+      console.warn("[contextle] Error reading user_rate_limits table:", error.message);
+      return false; // Bypass rate limit if query fails (graceful degradation)
+    }
 
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    if (!limitData) {
+      const { error: insertError } = await adminClient
+        .from("user_rate_limits")
+        .insert({
+          user_id: userId,
+          request_count: 1,
+          window_start: now.toISOString()
+        });
+      if (insertError) console.warn("[contextle] Error inserting into user_rate_limits:", insertError.message);
+      return false;
+    }
+
+    const windowStart = new Date(limitData.window_start);
+    const diffMs = now.getTime() - windowStart.getTime();
+
+    if (diffMs > windowMs) {
+      const { error: updateError } = await adminClient
+        .from("user_rate_limits")
+        .update({
+          request_count: 1,
+          window_start: now.toISOString()
+        })
+        .eq("user_id", userId);
+      if (updateError) console.warn("[contextle] Error resetting user_rate_limits:", updateError.message);
+      return false;
+    }
+
+    if (limitData.request_count >= maxRequests) {
+      return true; // Rate limited!
+    }
+
+    const { error: incError } = await adminClient
+      .from("user_rate_limits")
+      .update({
+        request_count: limitData.request_count + 1
+      })
+      .eq("user_id", userId);
+    if (incError) console.warn("[contextle] Error incrementing user_rate_limits:", incError.message);
+
     return false;
+  } catch (err) {
+    console.warn("[contextle] DB rate limit check bypassed:", err);
+    return false; // Graceful degradation
   }
-  if (entry.count >= RATE_LIMIT_MAX) return true;
-  entry.count++;
-  return false;
 }
 
 // Trim and lowercase the raw AI word (no aggressive regex replacement to prevent corruptions)
@@ -31,30 +79,29 @@ function isValidWord(word: string): boolean {
   return /^[a-z]{3,20}$/.test(word);
 }
 
-// ── Advanced Secret Word Leak Detection ──
+// ── Precise Secret Word Leak Detection ──
 function doesStoryLeakSecretWord(story: string, secretWord: string): boolean {
   const cleanStory = story.toLowerCase().replace(/[^a-z\s]/g, " ");
   const storyWords = cleanStory.split(/\s+/).filter(Boolean);
-  
+
+  const suffixes = [
+    "s", "es", "d", "ed", "ing", "ings", "er", "ers", "est",
+    "y", "ly", "ist", "ists", "ism", "ness", "able", "ible"
+  ];
+
   for (const word of storyWords) {
     if (word === secretWord) return true;
-    
-    // Catch common extensions (e.g., secretWord="guitar", storyWord="guitarist" or "guitars")
-    if (word.startsWith(secretWord)) return true;
-    
-    // Catch if the story word is a prefix of the secret word (for words >= 4 letters)
-    // e.g. secretWord="guitars", storyWord="guitar"
-    if (secretWord.length >= 4 && secretWord.startsWith(word) && word.length >= 4) {
-      return true;
+
+    // Check secretWord + suffix (e.g. guitar -> guitarist)
+    for (const suffix of suffixes) {
+      if (word === secretWord + suffix) return true;
     }
-    
-    // Check if the secret word is contained within the story word (e.g. secretWord="paint", storyWord="painting")
-    if (secretWord.length >= 4 && word.includes(secretWord)) return true;
-    
-    // Check if the story word is contained within the secret word (e.g. secretWord="paintings", storyWord="paint")
-    if (word.length >= 4 && secretWord.includes(word)) return true;
+
+    // Check word + suffix (e.g. paintings -> paint)
+    for (const suffix of suffixes) {
+      if (secretWord === word + suffix) return true;
+    }
   }
-  
   return false;
 }
 
@@ -70,12 +117,62 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: false, error: "You must be logged in to play." }, { status: 401 });
   }
 
-  // 2. Rate Limiting (per user)
-  if (isRateLimited(user.id)) {
+  // 2. Fetch user's current level & atomically acquire lock
+  const adminClient = await createAdminClient();
+
+  // DB-Backed Rate Limiting Check (Serverless/Edge safe)
+  const rateLimited = await checkDbRateLimit(adminClient, user.id);
+  if (rateLimited) {
     return NextResponse.json(
       { success: false, error: "Too many requests. Please wait a minute before generating another word." },
       { status: 429 }
     );
+  }
+
+  // Atomically acquire generation lock
+  // Update profiles table, setting active_word to "generating" only if it is currently null
+  const { data: lockProfile } = await adminClient
+    .from("profiles")
+    .update({
+      active_word: "generating",
+      updated_at: new Date().toISOString()
+    })
+    .eq("id", user.id)
+    .is("active_word", null)
+    .select("current_level, active_word, current_story");
+
+  let profile = lockProfile && lockProfile.length > 0 ? lockProfile[0] : null;
+
+  if (!profile) {
+    // Fetch the profile to see if it is already generating or has a word
+    const { data: existingProfile, error: fetchError } = await adminClient
+      .from("profiles")
+      .select("current_level, active_word, current_story")
+      .eq("id", user.id)
+      .single();
+
+    if (fetchError || !existingProfile) {
+      return NextResponse.json({ success: false, error: "Profile not found." }, { status: 404 });
+    }
+
+    if (existingProfile.active_word === "generating") {
+      return NextResponse.json(
+        { success: false, error: "A word is already being generated for you. Please wait." },
+        { status: 409 }
+      );
+    }
+
+    // If a word is already generated, return it immediately to resolve the race condition
+    if (existingProfile.active_word && existingProfile.current_story) {
+      try {
+        const stories = JSON.parse(existingProfile.current_story);
+        return NextResponse.json({ success: true, stories });
+      } catch {
+        // parsing failed, proceed to generate
+      }
+    }
+
+    profile = existingProfile;
   }
 
   let excludeWords: string[] = [];
@@ -94,27 +191,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Prevent throwing an error if body is empty
   }
 
-  // 3. Fetch user's current level from Supabase
-  const adminClient = await createAdminClient();
-  const { data: profile, error: profileError } = await adminClient
-    .from("profiles")
-    .select("current_level")
-    .eq("id", user.id)
-    .single();
-
-  if (profileError || !profile) {
-    return NextResponse.json({ success: false, error: "Profile not found." }, { status: 404 });
-  }
-
   const currentLevel = reqLevel !== null ? reqLevel : profile.current_level;
 
-  // 4. Fetch played words server-side from played_words table if it exists
+  // 3. Fetch played words server-side from played_words table (Optimized: limit to last 100)
   let dbPlayedWords: string[] = [];
   try {
     const { data: playedData } = await adminClient
       .from("played_words")
       .select("word")
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .order("played_at", { ascending: false })
+      .limit(100);
     if (playedData) {
       dbPlayedWords = playedData.map(row => row.word.trim().toLowerCase());
     }
@@ -206,6 +293,8 @@ Requirements:
 
         if (updateError) {
           console.error("[contextle] Failed to save word/stories to profile:", updateError);
+          // Release lock before returning
+          await adminClient.from("profiles").update({ active_word: null }).eq("id", user.id).eq("active_word", "generating");
           return NextResponse.json(
             { success: false, error: "Failed to start game in database." },
             { status: 500 }
@@ -294,6 +383,8 @@ Requirements:
 
         if (updateError) {
           console.error("[contextle] Failed to save Groq generated word to profile:", updateError);
+          // Release lock before returning
+          await adminClient.from("profiles").update({ active_word: null }).eq("id", user.id).eq("active_word", "generating");
           return NextResponse.json(
             { success: false, error: "Failed to start game in database." },
             { status: 500 }
@@ -314,7 +405,16 @@ Requirements:
 
   // ── TIER 3: EMERGENCY LOCAL FALLBACK (Fallback of last resort if all APIs fail) ──
   console.warn("[contextle] All AI routes failed or keys missing. Using local emergency fallback.");
-  return getFallbackWord(adminClient, user.id, currentLevel, allExcluded);
+  try {
+    return await getFallbackWord(adminClient, user.id, currentLevel, allExcluded);
+  } catch {
+    // Release lock on final failure
+    await adminClient.from("profiles").update({ active_word: null }).eq("id", user.id).eq("active_word", "generating");
+    return NextResponse.json(
+      { success: false, error: "All generation sources failed." },
+      { status: 500 }
+    );
+  }
 }
 
 // ── Emergency Local Word Selection Function ──────────────────────────────────
