@@ -8,6 +8,7 @@ import type { GuessEntry, GuessResponse, UserProfile } from "@/types/game";
 import { getRankTier, getRankColor, getRankBarClass, getRankLabel } from "@/types/game";
 import HowToPlayModal from "@/components/HowToPlayModal";
 import { Logo } from "@/components/Logo";
+import Leaderboard from "@/components/Leaderboard";
 import type { User } from "@supabase/supabase-js";
 import Link from "next/link";
 import Image from "next/image";
@@ -606,8 +607,9 @@ export default function HomePage() {
           </nav>
         </header>
 
-        {/* ── Main Layout (Centered) ─────────────────────────────────────── */}
-        <main className="flex-1 max-w-2xl mx-auto w-full px-4 pb-24 pt-12 flex flex-col">
+        {/* ── Main Layout (Responsive with Sidebar) ───────────────────────── */}
+        <div className="flex-1 max-w-5xl mx-auto w-full px-4 pb-24 pt-12 flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
+          <main className="flex-1 max-w-2xl mx-auto w-full flex flex-col">
           {/* Hero Header */}
           <motion.div 
             className="text-center mb-8" 
@@ -842,7 +844,12 @@ export default function HomePage() {
               </motion.aside>
             </div>
           )}
-        </main>
+          </main>
+          
+          <aside className="w-full lg:w-72 flex-shrink-0 mt-8 lg:mt-0 order-last">
+            <Leaderboard />
+          </aside>
+        </div>
 
         {/* Footer */}
         <footer className="border-t border-white/[0.03] py-5 mt-auto">
