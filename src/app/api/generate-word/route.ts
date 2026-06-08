@@ -124,6 +124,9 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
 
   // ── TIER 1: OpenRouter API ─────────────────────────────────────────────────
   const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY;
+  console.log("[contextle] Env check: OPENROUTER_API_KEY is defined:", !!openRouterApiKey, "| GEMINI_API_KEY is defined:", !!geminiApiKey);
+
   if (openRouterApiKey) {
     try {
       console.log("[contextle] Tier 1: Trying OpenRouter...");
@@ -158,7 +161,10 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
       }
 
       const data = await response.json();
+      console.log("OpenRouter Raw response data:", JSON.stringify(data));
       const rawText = data.choices?.[0]?.message?.content?.trim();
+      console.log("OpenRouter Raw Content:", rawText);
+
       if (!rawText) {
         throw new Error("OpenRouter returned empty content");
       }
@@ -178,18 +184,18 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
       } else {
         throw new Error("Sanity checks failed for OpenRouter output");
       }
-    } catch (err) {
-      console.warn("[contextle] Tier 1: OpenRouter failed. Details:", err);
+    } catch (error) {
+      console.error("OpenRouter Error:", error);
     }
   } else {
     console.log("[contextle] Tier 1: OpenRouter API key not set, skipping.");
   }
 
   // ── TIER 2: Direct Gemini API (Fallback) ───────────────────────────────────
-  if (!cleanWord && process.env.GEMINI_API_KEY) {
+  if (!cleanWord && geminiApiKey) {
     try {
       console.log("[contextle] Tier 2: Trying Direct Gemini SDK...");
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const genAI = new GoogleGenerativeAI(geminiApiKey);
       const model = genAI.getGenerativeModel({
         model: "gemini-1.5-flash",
         generationConfig: {
@@ -200,6 +206,8 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
 
       const result = await model.generateContent(prompt);
       const rawText = result.response.text().trim();
+      console.log("Direct Gemini Raw Content:", rawText);
+
       if (!rawText) {
         throw new Error("Direct Gemini returned empty content");
       }
@@ -219,8 +227,8 @@ Return ONLY a valid JSON object matching this schema. Do not include markdown co
       } else {
         throw new Error("Sanity checks failed for Direct Gemini output");
       }
-    } catch (err) {
-      console.error("[contextle] Tier 2: Direct Gemini SDK failed. Details:", err);
+    } catch (error) {
+      console.error("Direct Gemini Error:", error);
     }
   }
 
