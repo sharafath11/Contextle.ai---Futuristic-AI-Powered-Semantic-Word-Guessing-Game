@@ -35,12 +35,13 @@ export async function createClient() {
   );
 }
 
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+
 /**
  * Admin client using the service role key — bypasses RLS.
  * ⚠️  ONLY use in Route Handlers and Server Actions. NEVER on the client.
  */
 export async function createAdminClient() {
-  const cookieStore = await cookies();
   const serviceKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.SUPABASE_KEY ||
@@ -49,23 +50,13 @@ export async function createAdminClient() {
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder-project.supabase.co";
 
-  return createServerClient(
+  return createSupabaseClient(
     url,
     serviceKey,
     {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Ignore in server component context
-          }
-        },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
     }
   );

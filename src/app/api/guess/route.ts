@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createClient, createAdminClient } from "@/utils/supabase/server";
 import type { GuessResponse } from "@/types/game";
+import { callAIProvider } from "@/lib/aiProvider";
 
 // ── Security: rate-limit map (per-user, in-memory, resets on cold start) ─────
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -211,9 +212,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
     const prompt = `
 You are a semantic similarity evaluator for a word-guessing game.
 
@@ -241,30 +239,11 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation.
 }
 `.trim();
 
-    const result = await model.generateContent(prompt);
-    const rawText = result.response.text().trim();
-    console.log("[contextle][API] Guess Gemini raw response:", rawText);
-
-    // Strip potential markdown code fences
-    const jsonText = rawText
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/, "");
-
-    let parsed: {
+    const parsed = await callAIProvider<{
       rank: number;
       similarityPercentage: number;
       isCorrect: boolean;
-    };
-    try {
-      parsed = JSON.parse(jsonText);
-      console.log("[contextle][API] Guess Gemini parsed JSON:", parsed);
-    } catch {
-      console.error("[contextle] Gemini returned non-JSON:", rawText);
-      return NextResponse.json(
-        { success: false, error: "AI evaluation failed. Please try again." },
-        { status: 502 }
-      );
-    }
+    }>(prompt, "Guess");
 
     // Clamp values defensively
     const rank = Math.min(1000, Math.max(1, Math.round(parsed.rank ?? 999)));
@@ -281,7 +260,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation.
       isCorrect: false,
     });
   } catch (error) {
-    console.warn("[contextle] Gemini API error, using fallback similarity metric:", error);
+    console.warn("[contextle][Guess] All AI providers failed. Using local fallback similarity metric:", error);
     const { rank, similarityPercentage } = calculateFallbackSimilarity(guess, secretWord);
     return NextResponse.json<GuessResponse>({
       success: true,

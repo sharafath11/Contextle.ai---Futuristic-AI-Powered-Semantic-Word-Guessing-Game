@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, createAdminClient } from "@/utils/supabase/server";
 import { EASY_PAIRS, MEDIUM_PAIRS, HARD_PAIRS } from "@/lib/fallbackData";
+import { callAIProvider } from "@/lib/aiProvider";
 
 // ── DB-Backed Rate Limiting (per user, serverless-safe) ──
 async function checkDbRateLimit(
@@ -214,7 +215,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Compact prompt to reduce token count, cost, and latency
   const prompt = `
-Generate one secret guessable noun and exactly 3 clue stories for a Level ${currentLevel} word guessing game.
+Generate EXACTLY ONE secret word and exactly 3 clue stories for a Level ${currentLevel} word guessing game.
+Your word choice and clue difficulty MUST strictly match the level guidelines below.
 
 Requirements:
 * Return ONLY valid raw JSON.
@@ -244,215 +246,87 @@ Rules:
 * Every story must start with a capital letter.
 * Every story must end with punctuation.
 
-Level Difficulty Scaling:
-* Level 1-5 (Easy): Simple everyday noun. Direct descriptions of utility or appearance.
-* Level 6-15 (Medium): Moderately challenging noun. Cryptic and atmospheric clues.
-* Level 16+ (Hard): Challenging but concrete noun. Atmospheric, cryptic, and puzzle-like clues.
+Vocabulary Selection Bands:
+* LEVELS 1-5: Very common everyday nouns (e.g. apple, chair, clock, garden).
+* LEVELS 6-10: Common but less obvious nouns (e.g. harbor, glacier, artifact, compass).
+* LEVELS 11-20: Educational, scientific, historical, geographical nouns (e.g. labyrinth, telescope, velocity, catalyst).
+* LEVELS 21-35: Advanced concrete nouns (e.g. aqueduct, monastery, observatory, citadel).
+* LEVELS 36-50: Difficult concrete nouns (e.g. parchment, reliquary, catacomb, obelisk).
+* LEVELS 51-70: Advanced concrete nouns. Rare, university-level vocabulary. Avoid household objects, common animals, or common foods.
+* LEVELS 71-90: Scientific and historical nouns. Not commonly used in daily speech.
+* LEVELS 91+: Abstract concepts (e.g. serendipity, equilibrium, anomaly, paradox, symmetry).
+
+Clue Difficulty and Strength Scaling:
+* LEVELS 1-10: Clue 1 = direct, Clue 2 = moderate, Clue 3 = direct. Use direct descriptions, utility based, physical appearance.
+* LEVELS 11-35: Clue 1 = indirect, Clue 2 = indirect, Clue 3 = moderate. Use atmospheric, indirect, contextual clues. Avoid naming associated objects. (Good clue: "Generations have relied upon it as a point of arrival after long and uncertain journeys.")
+* LEVELS 36+: All 3 clues MUST be highly indirect. Use narrative, symbolic, historical, abstract, puzzle-like clues. Never reveal purpose, function, location, or obvious associations.
+
+GLOBAL RULES:
+* DO NOT reveal the answer.
+* DO NOT reveal direct synonyms.
+* DO NOT reveal obvious related objects.
+* DO NOT reveal famous examples.
+* DO NOT reveal defining characteristics.
+* DO NOT create clues that instantly identify the answer.
+* Generate clues appropriate to the requested level. Higher levels must produce significantly harder words and significantly more indirect clues.
+
+Example of a Good indirect clue: "The passage of time has transformed it from a practical necessity into a symbol of another age." or "It stands as a silent witness to countless arrivals and departures."
+Example of a Bad direct clue: "Ships arrive here." or "Fishermen unload their catch here."
 
 Return JSON only.
 `.trim();
 
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  // ── TIER 1: GOOGLE GEMINI (Primary API with Retry Logic) ──────────────────
-  if (apiKey) {
-    let attempts = 0;
-    const maxAttempts = 2;
-    while (attempts < maxAttempts) {
-      try {
-        console.log(`[contextle] Tier 1: Trying Direct Gemini SDK (Attempt ${attempts + 1})...`);
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({
-          model: "gemini-2.5-flash",
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: "application/json",
-          },
-          systemInstruction: `You are a JSON API.
-Return only valid JSON.
-Never return markdown.
-Never return explanations.
-Never return code fences.`,
-        });
-
-        // Set request options: timeout after 8000ms
-        const result = await model.generateContent(prompt, { timeout: 8000 });
-        const rawText = result.response.text().trim();
-        console.log("[contextle][API] Gemini raw response:", rawText);
-
-        const jsonText = rawText
-          .replace(/^```(?:json)?\s*/i, "")
-          .replace(/\s*```$/, "");
-
-        let parsed: { word: string; stories: string[] };
-        try {
-          parsed = JSON.parse(jsonText);
-          console.log("[contextle][API] Gemini parsed JSON:", parsed);
-        } catch {
-          throw new Error("Gemini returned invalid JSON: " + rawText);
-        }
-
-        const cleanWord = sanitizeWord(parsed.word);
-        // Redact AI word leaks instead of rejecting them (saves API quota)
-        let stories = (parsed.stories || []).map((s: string) => redactSecretWord(s.trim(), cleanWord)).filter(Boolean);
-
-
-
-        const serializedStories = JSON.stringify(stories);
-        
-        console.log("[contextle][DB] Saving Gemini data to profile:", {
-          id: user.id,
-          active_word: cleanWord,
-          stories_count: stories.length
-        });
-
-        const { error: updateError } = await adminClient
-          .from("profiles")
-          .update({
-            active_word: cleanWord,
-            current_story: serializedStories,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", user.id);
-
-        if (updateError) {
-          console.error("[contextle] Failed to save word/stories to profile:", updateError);
-          // Release lock before returning
-          await adminClient.from("profiles").update({ active_word: null }).eq("id", user.id).eq("active_word", "generating");
-          return NextResponse.json(
-            { success: false, error: "Failed to start game in database." },
-            { status: 500 }
-          );
-        }
-
-        return NextResponse.json({
-          success: true,
-          stories
-        });
-
-      } catch (error: any) {
-        console.warn(`[contextle] Gemini attempt ${attempts + 1} failed.`, error.message);
-        if (error.message && (error.message.includes("429") || error.message.includes("503") || error.message.includes("Quota") || error.message.includes("exhausted"))) {
-          console.warn("[contextle] Gemini capacity/quota exhausted. Fast-failing to Tier 2 (Groq).");
-          break; // Exit Gemini loop immediately and fallback
-        }
-        attempts++;
-      }
-    }
-  }
-
-  // ── TIER 2: GROQ API (Secondary API with Retry Logic) ─────────────────────
-  const groqApiKey = process.env.GROQ_API_KEY || process.env.GROK_API_KEY;
-  if (groqApiKey) {
-    let attempts = 0;
-    const maxAttempts = 2;
-    while (attempts < maxAttempts) {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second request timeout
-
-      try {
-        console.log(`[contextle] Tier 2: Fetching from Groq API (Attempt ${attempts + 1})...`);
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${groqApiKey}`,
-          },
-          body: JSON.stringify({
-            model: "llama-3.1-8b-instant",
-            messages: [
-              {
-                role: "system",
-                content: "You are generating content for an AI word-guessing game. Return ONLY a valid raw JSON object matching the requested schema. Never return markdown blocks, explanations, or code fences."
-              },
-              {
-                role: "user",
-                content: prompt,
-              },
-            ],
-            temperature: 0.2,
-            response_format: { type: "json_object" },
-          }),
-          signal: controller.signal
-        });
-
-        if (!response.ok) {
-          throw new Error(`Groq API returned status ${response.status}`);
-        }
-
-        const data = await response.json();
-        const rawText = data.choices?.[0]?.message?.content?.trim();
-        console.log("[contextle][API] Groq raw response:", rawText);
-
-        if (!rawText) {
-          throw new Error("Groq API returned empty content.");
-        }
-
-        const jsonText = rawText
-          .replace(/^```(?:json)?\s*/i, "")
-          .replace(/\s*```$/, "");
-
-        const parsed: { word: string; stories: string[] } = JSON.parse(jsonText);
-        console.log("[contextle][API] Groq parsed JSON:", parsed);
-
-        const cleanWord = sanitizeWord(parsed.word);
-        // Redact AI word leaks instead of rejecting them (saves API quota)
-        let stories = (parsed.stories || []).map((s: string) => redactSecretWord(s.trim(), cleanWord)).filter(Boolean);
-
-
-
-        const serializedStories = JSON.stringify(stories);
-
-        console.log("[contextle][DB] Saving Groq data to profile:", {
-          id: user.id,
-          active_word: cleanWord,
-          stories_count: stories.length
-        });
-
-        const { error: updateError } = await adminClient
-          .from("profiles")
-          .update({
-            active_word: cleanWord,
-            current_story: serializedStories,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", user.id);
-
-        if (updateError) {
-          console.error("[contextle] Failed to save Groq generated word to profile:", updateError);
-          // Release lock before returning
-          await adminClient.from("profiles").update({ active_word: null }).eq("id", user.id).eq("active_word", "generating");
-          return NextResponse.json(
-            { success: false, error: "Failed to start game in database." },
-            { status: 500 }
-          );
-        }
-
-        return NextResponse.json({
-          success: true,
-          stories,
-        });
-
-      } catch (groqError) {
-        attempts++;
-        console.warn(`[contextle] Groq attempt ${attempts} failed.`, groqError);
-      } finally {
-        clearTimeout(timeoutId);
-      }
-    }
-  }
-
-  // ── TIER 3: EMERGENCY LOCAL FALLBACK (Fallback of last resort if all APIs fail) ──
-  console.warn("[contextle] All AI routes failed or keys missing. Using local emergency fallback.");
   try {
-    return await getFallbackWord(adminClient, user.id, currentLevel, allExcluded);
-  } catch {
-    // Release lock on final failure
-    await adminClient.from("profiles").update({ active_word: null }).eq("id", user.id).eq("active_word", "generating");
-    return NextResponse.json(
-      { success: false, error: "All generation sources failed." },
-      { status: 500 }
-    );
+    const parsed = await callAIProvider<{ word: string; stories: string[] }>(prompt, "WordGen");
+    const cleanWord = parsed.word.trim().toLowerCase();
+    
+    // Redact AI word leaks instead of rejecting them (saves API quota)
+    let stories = (parsed.stories || []).map((s: string) => redactSecretWord(s.trim(), cleanWord)).filter(Boolean);
+
+    const serializedStories = JSON.stringify(stories);
+
+    console.log("[contextle][DB] Saving AI data to profile:", {
+      id: user.id,
+      active_word: cleanWord,
+      stories_count: stories.length
+    });
+
+    const { error: updateError } = await adminClient
+      .from("profiles")
+      .update({
+        active_word: cleanWord,
+        current_story: serializedStories,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id);
+
+    if (updateError) {
+      console.error("[contextle] Failed to save AI generated word to profile:", updateError);
+      await adminClient.from("profiles").update({ active_word: null }).eq("id", user.id).eq("active_word", "generating");
+      return NextResponse.json(
+        { success: false, error: "Failed to start game in database." },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      stories,
+    });
+
+  } catch (error) {
+    // ── TIER 5: EMERGENCY LOCAL FALLBACK (Fallback of last resort if all APIs fail) ──
+    console.warn("[contextle] All AI routes failed or keys missing. Using local emergency fallback.", error);
+    try {
+      return await getFallbackWord(adminClient, user.id, currentLevel, allExcluded);
+    } catch {
+      // Release lock on final failure
+      await adminClient.from("profiles").update({ active_word: null }).eq("id", user.id).eq("active_word", "generating");
+      return NextResponse.json(
+        { success: false, error: "All generation sources failed." },
+        { status: 500 }
+      );
+    }
   }
 }
 
