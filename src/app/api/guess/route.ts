@@ -179,6 +179,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.error("[contextle] Failed to advance level:", updateError);
     }
 
+    // Save to played_words table if available
+    try {
+      await adminClient
+        .from("played_words")
+        .insert({ user_id: user.id, word: guess });
+    } catch (err) {
+      console.warn("[contextle] Failed to insert into played_words table (might not exist):", err);
+    }
+
     return NextResponse.json<GuessResponse>({
       success: true,
       word: guess,
