@@ -876,6 +876,15 @@ export default function HomePage() {
           <SuccessModal word={wonWord} guessCount={guesses.length} newLevel={wonLevel} onNext={handleNextLevel} />
         )}
       </AnimatePresence>
+
+      {/* Version Badge */}
+      <div className="fixed bottom-3 right-3 text-[10px] font-mono px-2.5 py-0.5 bg-black/40 border border-neutral-800 text-neutral-500 rounded-md backdrop-blur-sm z-50 hover:text-neutral-300 transition-colors flex items-center gap-1.5 select-none">
+        <span className="flex h-1.5 w-1.5 relative">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+        </span>
+        <span>v2.1.0</span>
+      </div>
     </>
   );
 }
