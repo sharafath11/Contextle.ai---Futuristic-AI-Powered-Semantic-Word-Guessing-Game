@@ -105,6 +105,18 @@ function doesStoryLeakSecretWord(story: string, secretWord: string): boolean {
   return false;
 }
 
+// ── Obvious Typo Detection ──
+function hasObviousTypos(text: string): boolean {
+  // Regex word boundaries for common tokenization glitches
+  const typos = [
+    "\\bte\\b", "\\bfroo\\b", "\\biwth\\b", "\\badn\\b", "\\bhte\\b", 
+    "\\btaht\\b", "\\btihs\\b", "\\bwiht\\b", "\\bwsa\\b", "\\bI a\\b",
+    "\\bwoudl\\b", "\\bcoudl\\b"
+  ];
+  const regex = new RegExp(`(${typos.join("|")})`, "i");
+  return regex.test(text);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/generate-word - API route to generate a new word
 // ─────────────────────────────────────────────────────────────────────────────
@@ -241,7 +253,10 @@ Generate one secret guessable noun and exactly 3 related clue stories/descriptio
 
 STRICT QUALITY CONSTRAINTS:
 1. ANTI-REPETITION: Do NOT generate any of the following solved words: [${allExcluded.map(w => `"${w}"`).join(", ")}].
-2. PERFECT SPELLING & GRAMMAR: Use flawless spelling and spacing. NEVER merge words/articles (e.g. write "A musician", "In a world", NOT "Amusician", "Inaworld").
+2. SPELLING & GRAMMAR REQUIREMENTS (CRITICAL):
+   - Every clue must be absolutely free of spelling and grammar mistakes.
+   - Every sentence must start with a capital letter and end with punctuation.
+   - Reject incomplete words. Never merge articles with nouns (e.g., write "A musician", "In a world", NOT "Amusician", "Inaworld").
 3. VARIETY: Select one genre (e.g. Noir Detective, Cyberpunk Mystery, Space Exploration, Ancient Fantasy, Steampunk, Gothic Horror) and write all 3 clues in that style.
 4. LEVEL DIFFICULTY SCALING & CONSISTENCY:
 - Level 1-5 (Easy): Secret Word must be a simple everyday noun. Clue Stories must be straightforward, direct descriptions of utility or appearance (no cryptic metaphors).
@@ -275,7 +290,7 @@ Requirements:
         const model = genAI.getGenerativeModel({
           model: "gemini-2.5-flash",
           generationConfig: {
-            temperature: 0.7,
+            temperature: 0.4,
             responseMimeType: "application/json",
           },
           systemInstruction: "You are generating content for an AI word-guessing game. Return ONLY a valid raw JSON object matching the requested schema. Never return markdown blocks, explanations, or code fences.",
@@ -300,8 +315,9 @@ Requirements:
 
         // Verify AI didn't leak/cheat the secret word inside the stories
         const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
+        const hasTypo = stories.some(s => hasObviousTypos(s));
 
-        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat) {
+        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat || hasTypo) {
           throw new Error("Sanity checks failed for generated pair");
         }
 
@@ -367,7 +383,7 @@ Requirements:
                 content: prompt,
               },
             ],
-            temperature: 0.7,
+            temperature: 0.4,
             response_format: { type: "json_object" },
           }),
           signal: controller.signal
@@ -394,8 +410,9 @@ Requirements:
 
         // Verify AI didn't leak/cheat the secret word inside the stories
         const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
+        const hasTypo = stories.some(s => hasObviousTypos(s));
 
-        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat) {
+        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat || hasTypo) {
           throw new Error("Sanity checks failed for Groq generated pair.");
         }
 
