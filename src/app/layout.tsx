@@ -32,27 +32,27 @@ export const metadata: Metadata = {
 
   // ── Core ──────────────────────────────────────────────────────────────────
   title: {
-    default: "Contextle.ai - Futuristic AI Word Guessing Game",
-    template: "%s | Contextle.ai",
+    default: "Contextle - Ultimate AI Guess Word Game Online",
+    template: "%s | Contextle",
   },
-  description: SITE_DESCRIPTION,
+  description: "Looking for the best guess word game online? Challenge your vocabulary with Contextle. Guess the secret word daily using immersive, AI-generated context clue stories. Play for free!",
   keywords: [
+    "guess word game",
+    "guess word game online",
     "contextle",
-    "contextle ai",
-    "semantic word game",
-    "ai word guess",
-    "contexto clone",
-    "wordle ai",
-    "online word puzzles",
-    "free browser games"
+    "ai word puzzle",
+    "daily word guessing game",
+    "wordle alternative",
+    "context clues game",
+    "free online word game"
   ],
-  authors: [{ name: "Contextle.ai Team", url: SITE_URL }],
-  creator: "Contextle.ai",
-  publisher: "Contextle.ai",
+  authors: [{ name: "Contextle Team", url: SITE_URL }],
+  creator: "Contextle",
+  publisher: "Contextle",
 
   // ── Canonical & Robots ────────────────────────────────────────────────────
   alternates: {
-    canonical: "https://contextle.online",
+    canonical: "/",
   },
   robots: {
     index: true,
@@ -73,15 +73,15 @@ export const metadata: Metadata = {
     locale: "en_US",
     alternateLocale: ["en_GB", "en_AU"],
     url: "https://contextle.online",
-    siteName: SITE_NAME,
-    title: "Contextle.ai - The AI Semantic Word Game",
-    description: "Can you guess today's secret word? Decode the AI clue story and climb the level ranks now!",
+    siteName: "Contextle",
+    title: "Contextle - Ultimate AI Guess Word Game Online",
+    description: "Play the ultimate guess word game online! Crack the code and guess the secret word daily using smart AI context clues.",
     images: [
       {
         url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "Contextle.ai – Guess the daily secret word using AI-powered semantic similarity",
+        alt: "Contextle – Guess the daily secret word using AI-powered semantic similarity",
         type: "image/png",
       },
     ],
@@ -92,12 +92,12 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: "@contextleai",
     creator: "@contextleai",
-    title: "Contextle.ai - The AI Semantic Word Game",
-    description: "Can you guess today's secret word? Decode the AI clue story and climb the level ranks now!",
+    title: "Contextle - Free Guess Word Game Online",
+    description: "Can you solve the puzzle? Play the best AI-powered guess word game online now!",
     images: [
       {
         url: OG_IMAGE,
-        alt: "Contextle.ai – Daily AI word guessing game",
+        alt: "Contextle – Daily AI word guessing game",
       },
     ],
   },

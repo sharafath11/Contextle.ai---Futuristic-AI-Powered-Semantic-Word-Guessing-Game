@@ -9,6 +9,8 @@ import { getRankTier, getRankColor, getRankBarClass, getRankLabel } from "@/type
 import HowToPlayModal from "@/components/HowToPlayModal";
 import { Logo } from "@/components/Logo";
 import type { User } from "@supabase/supabase-js";
+import Link from "next/link";
+import Image from "next/image";
 
 // JSON-LD for Search Engine Optimization
 const jsonLd = {
@@ -562,9 +564,9 @@ export default function HomePage() {
         <header className="sticky top-0 z-30 border-b border-white/[0.04] bg-[#09090b]/80 backdrop-blur-xl">
           <nav className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <a href="/" className="h-7 flex items-center hover:opacity-80 transition-opacity" aria-label="Contextle Home">
+              <Link href="/" className="h-7 flex items-center hover:opacity-80 transition-opacity" aria-label="Contextle Home">
                 <Logo className="h-6.5 w-auto" />
-              </a>
+              </Link>
               {profile && (
                 <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-semibold tracking-wide uppercase">
                   Level {profile.current_level}
@@ -585,7 +587,7 @@ export default function HomePage() {
               {user && (
                 <div className="flex items-center gap-2 border-l border-white/[0.06] pl-3">
                   {user.user_metadata?.avatar_url ? (
-                    <img src={user.user_metadata.avatar_url} alt="" className="w-6 h-6 rounded-full border border-white/10" />
+                    <Image src={user.user_metadata.avatar_url} alt="User Avatar" width={24} height={24} className="w-6 h-6 rounded-full border border-white/10" />
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px] text-emerald-400 font-bold border border-emerald-500/30">
                       {(user.user_metadata?.full_name?.[0] ?? user.email?.[0] ?? "?").toUpperCase()}
@@ -614,10 +616,10 @@ export default function HomePage() {
             transition={{ duration: 0.3 }}
           >
             <h1 className="font-bold text-2xl sm:text-3xl text-white tracking-tight mb-2">
-              Find the Secret Word
+              Play the Best Guess Word Game Online
             </h1>
             <p className="text-neutral-400 text-sm font-medium">
-              Every guess reveals meaning and context.
+              Find the secret word daily using meaning and context.
             </p>
             {guesses.length > 0 && (
               <p className="text-neutral-500 text-xs mt-3 font-mono tracking-tight">
@@ -773,7 +775,7 @@ export default function HomePage() {
               </AnimatePresence>
 
               {/* Active Gaming Grid or Guess History */}
-              <div className="w-full">
+              <section className="w-full" aria-label="Guess History">
                 {guesses.length === 0 ? (
                   <motion.div 
                     initial={{ opacity: 0 }} 
@@ -810,13 +812,14 @@ export default function HomePage() {
                     </motion.div>
                   </div>
                 )}
-              </div>
+              </section>
 
               {/* Stats Card */}
-              <motion.div 
+              <motion.aside 
                 initial={{ opacity: 0 }} 
                 animate={{ opacity: 1 }} 
                 className="mt-8 glass rounded-xl p-4 border border-white/[0.04] flex items-center justify-between bg-white/[0.002]"
+                aria-label="Player Statistics"
               >
                 <div>
                   <p className="text-xs font-semibold text-neutral-300">Your Progress</p>
@@ -836,7 +839,7 @@ export default function HomePage() {
                     <p className="text-[9px] text-neutral-500 uppercase tracking-wider font-semibold">Level</p>
                   </div>
                 </div>
-              </motion.div>
+              </motion.aside>
             </div>
           )}
         </main>
@@ -848,13 +851,13 @@ export default function HomePage() {
               <span className="text-neutral-500">contextle.ai</span>
             </p>
             <div className="flex items-center justify-center gap-4 text-[10px] text-neutral-600">
-              <a href="/about" className="hover:text-cyan-400 transition-colors">About</a>
+              <Link href="/about" className="hover:text-cyan-400 transition-colors">About</Link>
               <span className="text-neutral-800">·</span>
-              <a href="/contact" className="hover:text-cyan-400 transition-colors">Contact</a>
+              <Link href="/contact" className="hover:text-cyan-400 transition-colors">Contact</Link>
               <span className="text-neutral-800">·</span>
-              <a href="/privacy" className="hover:text-cyan-400 transition-colors">Privacy</a>
+              <Link href="/privacy" className="hover:text-cyan-400 transition-colors">Privacy</Link>
               <span className="text-neutral-800">·</span>
-              <a href="/terms" className="hover:text-cyan-400 transition-colors">Terms</a>
+              <Link href="/terms" className="hover:text-cyan-400 transition-colors">Terms</Link>
             </div>
           </div>
         </footer>

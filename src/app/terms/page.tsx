@@ -198,9 +198,9 @@ export default function TermsOfServicePage() {
             <h2 className="text-base font-semibold text-neutral-200 mb-3">11. Contact</h2>
             <p>
               If you have any questions about these Terms of Service, please contact us at:{" "}
-              <a href="mailto:sharafathabi.personal@gmail.com" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
+              <Link href="mailto:sharafathabi.personal@gmail.com" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
                 sharafathabi.personal@gmail.com
-              </a>
+              </Link>
             </p>
           </motion.section>
         </div>

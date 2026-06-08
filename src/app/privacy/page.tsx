@@ -136,13 +136,13 @@ export default function PrivacyPolicyPage() {
               the IP address assigned to you on the date you visit our site, rather than your name or other identifying
               information. Google&apos;s ability to use and share information collected by Google Analytics about your visits to
               this site is restricted by the{" "}
-              <a href="https://marketingplatform.google.com/about/analytics/terms/us/" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
+              <Link href="https://marketingplatform.google.com/about/analytics/terms/us/" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
                 Google Analytics Terms of Service
-              </a>{" "}
+              </Link>{" "}
               and the{" "}
-              <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
+              <Link href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
                 Google Privacy Policy
-              </a>.
+              </Link>.
             </p>
           </motion.section>
 
@@ -160,9 +160,9 @@ export default function PrivacyPolicyPage() {
               <li className="flex items-start gap-2">
                 <span className="text-violet-400 mt-0.5">•</span>
                 <span>Users may opt out of the use of the DART cookie by visiting the Google Ad and Content Network privacy policy at{" "}
-                  <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
+                  <Link href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
                     https://policies.google.com/technologies/ads
-                  </a>.
+                  </Link>.
                 </span>
               </li>
               <li className="flex items-start gap-2">
@@ -230,9 +230,9 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-base font-semibold text-neutral-200 mb-3">12. Contact Us</h2>
             <p>
               If you have any questions about this Privacy Policy, please contact us at:{" "}
-              <a href="mailto:sharafathabi.personal@gmail.com" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
+              <Link href="mailto:sharafathabi.personal@gmail.com" className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2">
                 sharafathabi.personal@gmail.com
-              </a>
+              </Link>
             </p>
           </motion.section>
         </div>
