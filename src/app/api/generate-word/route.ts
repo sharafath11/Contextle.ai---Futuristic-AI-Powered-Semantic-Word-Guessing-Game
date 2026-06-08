@@ -302,10 +302,6 @@ Never return code fences.`,
         const result = await model.generateContent(prompt, { timeout: 8000 });
         const rawText = result.response.text().trim();
 
-        console.log("\n--- [DEBUG: AI GENERATION FLOW (GEMINI)] ---");
-        console.log("1. EXCLUDED WORDS:", allExcluded);
-        console.log("2. RAW AI OUTPUT:\n", rawText);
-
         const jsonText = rawText
           .replace(/^```(?:json)?\s*/i, "")
           .replace(/\s*```$/, "");
@@ -313,15 +309,12 @@ Never return code fences.`,
         let parsed: { word: string; stories: string[] };
         try {
           parsed = JSON.parse(jsonText);
-          console.log("3. PARSED JSON:", JSON.stringify(parsed, null, 2));
         } catch {
           throw new Error("Gemini returned invalid JSON: " + rawText);
         }
 
         const cleanWord = sanitizeWord(parsed.word);
         let stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
-        
-        console.log("4. GENERATED STORIES BEFORE CORRECTION:", stories);
 
         // Verify AI didn't leak/cheat the secret word inside the stories
         const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
@@ -409,21 +402,14 @@ Never return code fences.`,
           throw new Error("Groq API returned empty content.");
         }
 
-        console.log("\n--- [DEBUG: AI GENERATION FLOW (GROQ)] ---");
-        console.log("1. EXCLUDED WORDS:", allExcluded);
-        console.log("2. RAW AI OUTPUT:\n", rawText);
-
         const jsonText = rawText
           .replace(/^```(?:json)?\s*/i, "")
           .replace(/\s*```$/, "");
 
         const parsed: { word: string; stories: string[] } = JSON.parse(jsonText);
-        console.log("3. PARSED JSON:", JSON.stringify(parsed, null, 2));
 
         const cleanWord = sanitizeWord(parsed.word);
         let stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
-        
-        console.log("4. GENERATED STORIES BEFORE CORRECTION:", stories);
 
         // Verify AI didn't leak/cheat the secret word inside the stories
         const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
