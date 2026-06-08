@@ -77,8 +77,9 @@ STRICT QUALITY CONSTRAINTS:
 You MUST generate a highly unique, unpredictable secret word and story every single time. Avoid generic words like "apple", "key", "car" and instead use deeply engaging, rich context words.
 ${excludeWords.length > 0 ? `Additionally, you MUST NOT generate any of the following previously used/solved words:\n[${excludeWords.map(w => `"${w}"`).join(", ")}]` : ""}
 
-2. PERFECT SPELLING & GRAMMAR:
-You are an elite English novelist. Before returning the JSON, you MUST double-check the 'story' and 'clues' fields for typos, broken English, or spelling mistakes. All words must be spelled perfectly according to standard English dictionaries.
+2. PERFECT SPELLING, GRAMMAR, PUNCTUATION & SPACING:
+You are an elite English novelist. Before returning the JSON, you MUST double-check the "stories" array for typos, broken English, punctuation errors, or spacing mistakes. 
+CRITICAL RULE: Ensure perfect spacing between words. You must NEVER merge separate words together (e.g., NEVER merge "A term" into "Aterm", "A futuristic" into "Afuturistic", "It is" into "Itis", or "in the" into "inthe"). Every single word must be correctly separated by a space, and every sentence must be grammatically flawless and properly punctuated.
 (Note: In the JSON response schema below, these correspond to the items within the "stories" array.)
 
 3. VARIETY (CYBERPUNK THEME):
