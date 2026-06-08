@@ -239,11 +239,7 @@ IMPORTANT: Return ONLY valid JSON. No markdown, no explanation.
         "X-Title": "Contextle AI"
       },
       body: JSON.stringify({
-        models: [
-          "google/gemini-flash-1.5-free",
-          "meta-llama/llama-3-8b-instruct:free",
-          "mistralai/mistral-7b-instruct:free"
-        ],
+        model: "google/gemini-2.5-flash",
         messages: [
           {
             role: "user",
