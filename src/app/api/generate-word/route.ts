@@ -117,6 +117,46 @@ function hasObviousTypos(text: string): boolean {
   return regex.test(text);
 }
 
+// ── AI Self-Correction Pass ──
+async function aiCorrectionPass(apiKey: string, word: string, stories: string[]): Promise<string[]> {
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+      },
+    });
+
+    const prompt = `
+Correct all spelling, grammar, punctuation, capitalization, and spacing errors in the following 3 clues.
+Do NOT change the meaning.
+Do NOT reveal the secret word: "${word}".
+Do NOT rewrite the style.
+
+Return EXACTLY 3 clues in a valid JSON object matching this schema:
+{
+  "stories": ["<clue_1>", "<clue_2>", "<clue_3>"]
+}
+
+Original Clues:
+${JSON.stringify(stories, null, 2)}
+`.trim();
+
+    const result = await model.generateContent(prompt, { timeout: 8000 });
+    const rawText = result.response.text().trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    const parsed = JSON.parse(rawText);
+    
+    if (parsed.stories && Array.isArray(parsed.stories) && parsed.stories.length === 3) {
+      return parsed.stories.map((s: string) => s.trim());
+    }
+  } catch (err) {
+    console.warn("[contextle] Self-correction pass failed. Using original.", err);
+  }
+  return stories;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/generate-word - API route to generate a new word
 // ─────────────────────────────────────────────────────────────────────────────
@@ -290,7 +330,7 @@ Requirements:
         const model = genAI.getGenerativeModel({
           model: "gemini-2.5-flash",
           generationConfig: {
-            temperature: 0.4,
+            temperature: 0.2,
             responseMimeType: "application/json",
           },
           systemInstruction: "You are generating content for an AI word-guessing game. Return ONLY a valid raw JSON object matching the requested schema. Never return markdown blocks, explanations, or code fences.",
@@ -311,13 +351,19 @@ Requirements:
         }
 
         const cleanWord = sanitizeWord(parsed.word);
-        const stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+        let stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+
+        // Run self-correction pass
+        if (apiKey && stories.length === 3) {
+          stories = await aiCorrectionPass(apiKey, cleanWord, stories);
+        }
 
         // Verify AI didn't leak/cheat the secret word inside the stories
         const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
         const hasTypo = stories.some(s => hasObviousTypos(s));
+        const hasBadFormatting = stories.some(s => !/^[A-Z]/.test(s) || !/[.!?]$/.test(s));
 
-        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat || hasTypo) {
+        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat || hasTypo || hasBadFormatting) {
           throw new Error("Sanity checks failed for generated pair");
         }
 
@@ -383,7 +429,7 @@ Requirements:
                 content: prompt,
               },
             ],
-            temperature: 0.4,
+            temperature: 0.2,
             response_format: { type: "json_object" },
           }),
           signal: controller.signal
@@ -406,13 +452,19 @@ Requirements:
 
         const parsed: { word: string; stories: string[] } = JSON.parse(jsonText);
         const cleanWord = sanitizeWord(parsed.word);
-        const stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+        let stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+
+        // Run self-correction pass
+        if (apiKey && stories.length === 3) {
+          stories = await aiCorrectionPass(apiKey, cleanWord, stories);
+        }
 
         // Verify AI didn't leak/cheat the secret word inside the stories
         const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
         const hasTypo = stories.some(s => hasObviousTypos(s));
+        const hasBadFormatting = stories.some(s => !/^[A-Z]/.test(s) || !/[.!?]$/.test(s));
 
-        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat || hasTypo) {
+        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat || hasTypo || hasBadFormatting) {
           throw new Error("Sanity checks failed for Groq generated pair.");
         }
 
