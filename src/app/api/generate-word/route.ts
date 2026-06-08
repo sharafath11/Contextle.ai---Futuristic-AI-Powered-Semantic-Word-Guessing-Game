@@ -3,10 +3,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient, createAdminClient } from "@/utils/supabase/server";
 import { EASY_PAIRS, MEDIUM_PAIRS, HARD_PAIRS } from "@/lib/fallbackData";
-import nspell from "nspell";
-import enDict from "dictionary-en";
-
-const spell = nspell(Buffer.from(enDict.aff), Buffer.from(enDict.dic));
 
 // ── DB-Backed Rate Limiting (per user, serverless-safe) ──
 async function checkDbRateLimit(
@@ -107,63 +103,6 @@ function doesStoryLeakSecretWord(story: string, secretWord: string): boolean {
     }
   }
   return false;
-}
-
-// ── Dictionary Spell Checker ──
-function hasSpellingErrors(story: string): boolean {
-  const cleanStory = story.replace(/[^a-zA-Z\s'-]/g, " ");
-  const words = cleanStory.split(/\s+/).filter(Boolean);
-
-  for (const word of words) {
-    if (!spell.correct(word)) {
-      if (!spell.correct(word.toLowerCase())) {
-        console.warn(`[contextle] Spellcheck rejected word: ${word}`);
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-// ── AI Self-Correction Pass ──
-async function aiCorrectionPass(apiKey: string, word: string, stories: string[]): Promise<string[]> {
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
-      },
-    });
-
-    const prompt = `
-Fix ALL spelling, grammar, punctuation, capitalization, and spacing mistakes in the following 3 clues.
-If any clue contains an incomplete sentence, repair it.
-Do NOT change the meaning.
-Do NOT reveal the secret word: "${word}".
-Do NOT rewrite the style.
-
-Return EXACTLY 3 clues in a valid JSON object matching this schema:
-{
-  "stories": ["<clue_1>", "<clue_2>", "<clue_3>"]
-}
-
-Original Clues:
-${JSON.stringify(stories, null, 2)}
-`.trim();
-
-    const result = await model.generateContent(prompt, { timeout: 8000 });
-    const rawText = result.response.text().trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-    const parsed = JSON.parse(rawText);
-    
-    if (parsed.stories && Array.isArray(parsed.stories) && parsed.stories.length === 3) {
-      return parsed.stories.map((s: string) => s.trim());
-    }
-  } catch (err) {
-    console.warn("[contextle] Self-correction pass failed. Using original.", err);
-  }
-  return stories;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -298,32 +237,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Compact prompt to reduce token count, cost, and latency
   const prompt = `
-Generate one secret guessable noun and exactly 3 related clue stories/descriptions for Level ${currentLevel} in an AI word game.
-
-STRICT QUALITY CONSTRAINTS:
-1. SECRET WORD EXCLUSION: The "word" field MUST NOT be any of these previously solved words: [${allExcluded.map(w => `"${w}"`).join(", ")}]. This restriction applies ONLY to the secret word. The clue stories may use any normal English words. Do not intentionally misspell words. Use correct English spelling at all times.
-2. SPELLING & GRAMMAR REQUIREMENTS (CRITICAL):
-   - Every clue must be absolutely free of spelling and grammar mistakes.
-   - Every sentence must start with a capital letter and end with punctuation.
-   - Reject incomplete words. Never merge articles with nouns (e.g., write "A musician", "In a world", NOT "Amusician", "Inaworld").
-3. VARIETY: Select one genre (e.g. Noir Detective, Cyberpunk Mystery, Space Exploration, Ancient Fantasy, Steampunk, Gothic Horror) and write all 3 clues in that style.
-4. LEVEL DIFFICULTY SCALING & CONSISTENCY:
-- Level 1-5 (Easy): Secret Word must be a simple everyday noun. Clue Stories must be straightforward, direct descriptions of utility or appearance (no cryptic metaphors).
-- Level 6-15 (Medium): Moderately challenging noun (e.g., glacier, fossil, silhouette). Clue Stories must be cryptic and atmospheric, requiring logical deduction.
-- Level 16+ (Hard): Challenging but concrete nouns (e.g., "labyrinth", "cathedral", "telescope", "monument", "compass"). Do NOT use highly abstract/impossible concepts (like "paradox" or "nostalgia") that are not guessable. Clue Stories must be atmospheric, cryptic, and puzzle-like, but still contain solvable semantic clues.
+Generate one secret guessable noun and exactly 3 clue stories for a Level ${currentLevel} word guessing game.
 
 Requirements:
-1. Return ONLY raw JSON matching this schema:
+* Return ONLY valid raw JSON.
+* Do NOT return markdown.
+* Do NOT return explanations.
+* Do NOT return code fences.
+* The response must match this schema exactly:
 {
-  "word": "<secret_word_lowercase>",
+  "word": "<secret_word>",
   "stories": [
-    "<clue_story_1>",
-    "<clue_story_2>",
-    "<clue_story_3>"
+    "<clue_1>",
+    "<clue_2>",
+    "<clue_3>"
   ]
 }
-2. The "word" must be a single, common noun, all lowercase, between 3 to 20 letters.
-3. The "stories" must be an array of EXACTLY 3 distinct clue stories. None of them must contain the secret word or its direct synonyms.
+
+Rules:
+* The word must be a single lowercase noun.
+* The word must contain only letters a-z.
+* The word must be between 3 and 20 characters.
+* The secret word MUST NOT be any of these previously solved words: [${allExcluded.map(w => `"${w}"`).join(", ")}].
+* The stories array must contain exactly 3 strings.
+* Each story must be unique.
+* Do not include the secret word in any story.
+* Write natural, fluent English.
+* Use correct spelling and grammar.
+* Every story must start with a capital letter.
+* Every story must end with punctuation.
+
+Level Difficulty Scaling:
+* Level 1-5 (Easy): Simple everyday noun. Direct descriptions of utility or appearance.
+* Level 6-15 (Medium): Moderately challenging noun. Cryptic and atmospheric clues.
+* Level 16+ (Hard): Challenging but concrete noun. Atmospheric, cryptic, and puzzle-like clues.
+
+Return JSON only.
 `.trim();
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -342,7 +291,11 @@ Requirements:
             temperature: 0.2,
             responseMimeType: "application/json",
           },
-          systemInstruction: "You are generating content for an AI word-guessing game. Return ONLY a valid raw JSON object matching the requested schema. Never return markdown blocks, explanations, or code fences.",
+          systemInstruction: `You are a JSON API.
+Return only valid JSON.
+Never return markdown.
+Never return explanations.
+Never return code fences.`,
         });
 
         // Set request options: timeout after 8000ms
@@ -370,17 +323,10 @@ Requirements:
         
         console.log("4. GENERATED STORIES BEFORE CORRECTION:", stories);
 
-        // Run self-correction pass
-        if (apiKey && stories.length === 3) {
-          stories = await aiCorrectionPass(apiKey, cleanWord, stories);
-        }
-
         // Verify AI didn't leak/cheat the secret word inside the stories
         const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
-        const hasTypo = stories.some(s => hasSpellingErrors(s));
-        const hasBadFormatting = stories.some(s => !/^[A-Z]/.test(s) || !/[.!?]$/.test(s));
 
-        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat || hasTypo || hasBadFormatting) {
+        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat) {
           throw new Error("Sanity checks failed for generated pair");
         }
 
@@ -479,17 +425,10 @@ Requirements:
         
         console.log("4. GENERATED STORIES BEFORE CORRECTION:", stories);
 
-        // Run self-correction pass
-        if (apiKey && stories.length === 3) {
-          stories = await aiCorrectionPass(apiKey, cleanWord, stories);
-        }
-
         // Verify AI didn't leak/cheat the secret word inside the stories
         const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
-        const hasTypo = stories.some(s => hasSpellingErrors(s));
-        const hasBadFormatting = stories.some(s => !/^[A-Z]/.test(s) || !/[.!?]$/.test(s));
 
-        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat || hasTypo || hasBadFormatting) {
+        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat) {
           throw new Error("Sanity checks failed for Groq generated pair.");
         }
 
