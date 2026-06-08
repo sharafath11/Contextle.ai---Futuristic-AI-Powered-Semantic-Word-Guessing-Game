@@ -301,7 +301,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 Generate one secret guessable noun and exactly 3 related clue stories/descriptions for Level ${currentLevel} in an AI word game.
 
 STRICT QUALITY CONSTRAINTS:
-1. ANTI-REPETITION: Do NOT generate any of the following solved words: [${allExcluded.map(w => `"${w}"`).join(", ")}].
+1. SECRET WORD EXCLUSION: The "word" field MUST NOT be any of these previously solved words: [${allExcluded.map(w => `"${w}"`).join(", ")}]. This restriction applies ONLY to the secret word. The clue stories may use any normal English words. Do not intentionally misspell words. Use correct English spelling at all times.
 2. SPELLING & GRAMMAR REQUIREMENTS (CRITICAL):
    - Every clue must be absolutely free of spelling and grammar mistakes.
    - Every sentence must start with a capital letter and end with punctuation.
@@ -348,6 +348,11 @@ Requirements:
         // Set request options: timeout after 8000ms
         const result = await model.generateContent(prompt, { timeout: 8000 });
         const rawText = result.response.text().trim();
+
+        console.log("\n--- [DEBUG: AI GENERATION FLOW (GEMINI)] ---");
+        console.log("1. EXCLUDED WORDS:", allExcluded);
+        console.log("2. RAW AI OUTPUT:\n", rawText);
+
         const jsonText = rawText
           .replace(/^```(?:json)?\s*/i, "")
           .replace(/\s*```$/, "");
@@ -355,12 +360,15 @@ Requirements:
         let parsed: { word: string; stories: string[] };
         try {
           parsed = JSON.parse(jsonText);
+          console.log("3. PARSED JSON:", JSON.stringify(parsed, null, 2));
         } catch {
           throw new Error("Gemini returned invalid JSON: " + rawText);
         }
 
         const cleanWord = sanitizeWord(parsed.word);
         let stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+        
+        console.log("4. GENERATED STORIES BEFORE CORRECTION:", stories);
 
         // Run self-correction pass
         if (apiKey && stories.length === 3) {
@@ -455,13 +463,21 @@ Requirements:
           throw new Error("Groq API returned empty content.");
         }
 
+        console.log("\n--- [DEBUG: AI GENERATION FLOW (GROQ)] ---");
+        console.log("1. EXCLUDED WORDS:", allExcluded);
+        console.log("2. RAW AI OUTPUT:\n", rawText);
+
         const jsonText = rawText
           .replace(/^```(?:json)?\s*/i, "")
           .replace(/\s*```$/, "");
 
         const parsed: { word: string; stories: string[] } = JSON.parse(jsonText);
+        console.log("3. PARSED JSON:", JSON.stringify(parsed, null, 2));
+
         const cleanWord = sanitizeWord(parsed.word);
         let stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+        
+        console.log("4. GENERATED STORIES BEFORE CORRECTION:", stories);
 
         // Run self-correction pass
         if (apiKey && stories.length === 3) {
