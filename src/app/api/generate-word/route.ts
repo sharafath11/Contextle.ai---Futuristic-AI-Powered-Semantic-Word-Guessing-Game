@@ -79,30 +79,16 @@ function isValidWord(word: string): boolean {
   return /^[a-z]{3,20}$/.test(word);
 }
 
-// ── Precise Secret Word Leak Detection ──
-function doesStoryLeakSecretWord(story: string, secretWord: string): boolean {
-  const cleanStory = story.toLowerCase().replace(/[^a-z\s]/g, " ");
-  const storyWords = cleanStory.split(/\s+/).filter(Boolean);
-
-  const suffixes = [
-    "s", "es", "d", "ed", "ing", "ings", "er", "ers", "est",
-    "y", "ly", "ist", "ists", "ism", "ness", "able", "ible"
-  ];
-
-  for (const word of storyWords) {
-    if (word === secretWord) return true;
-
-    // Check secretWord + suffix (e.g. guitar -> guitarist)
-    for (const suffix of suffixes) {
-      if (word === secretWord + suffix) return true;
-    }
-
-    // Check word + suffix (e.g. paintings -> paint)
-    for (const suffix of suffixes) {
-      if (secretWord === word + suffix) return true;
-    }
-  }
-  return false;
+// ── Redact Secret Word (Turn Leaks into Fill-in-the-Blank Clues) ──
+function redactSecretWord(story: string, secretWord: string): string {
+  // Redact the exact word
+  let redacted = story.replace(new RegExp(`\\b${secretWord}\\b`, "gi"), "___");
+  // Redact common plural/suffix forms
+  redacted = redacted.replace(new RegExp(`\\b${secretWord}s\\b`, "gi"), "___s");
+  redacted = redacted.replace(new RegExp(`\\b${secretWord}es\\b`, "gi"), "___es");
+  redacted = redacted.replace(new RegExp(`\\b${secretWord}ing\\b`, "gi"), "___ing");
+  redacted = redacted.replace(new RegExp(`\\b${secretWord}ed\\b`, "gi"), "___ed");
+  return redacted;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -314,12 +300,10 @@ Never return code fences.`,
         }
 
         const cleanWord = sanitizeWord(parsed.word);
-        let stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+        // Redact AI word leaks instead of rejecting them (saves API quota)
+        let stories = (parsed.stories || []).map((s: string) => redactSecretWord(s.trim(), cleanWord)).filter(Boolean);
 
-        // Verify AI didn't leak/cheat the secret word inside the stories
-        const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
-
-        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat) {
+        if (!isValidWord(cleanWord) || stories.length !== 3) {
           throw new Error("Sanity checks failed for generated pair");
         }
 
@@ -349,9 +333,13 @@ Never return code fences.`,
           stories
         });
 
-      } catch (error) {
+      } catch (error: any) {
+        console.warn(`[contextle] Gemini attempt ${attempts + 1} failed.`, error.message);
+        if (error.message && (error.message.includes("429") || error.message.includes("503") || error.message.includes("Quota") || error.message.includes("exhausted"))) {
+          console.warn("[contextle] Gemini capacity/quota exhausted. Fast-failing to Tier 2 (Groq).");
+          break; // Exit Gemini loop immediately and fallback
+        }
         attempts++;
-        console.warn(`[contextle] Gemini attempt ${attempts} failed.`, error);
       }
     }
   }
@@ -409,12 +397,10 @@ Never return code fences.`,
         const parsed: { word: string; stories: string[] } = JSON.parse(jsonText);
 
         const cleanWord = sanitizeWord(parsed.word);
-        let stories = (parsed.stories || []).map((s: string) => s.trim()).filter(Boolean);
+        // Redact AI word leaks instead of rejecting them (saves API quota)
+        let stories = (parsed.stories || []).map((s: string) => redactSecretWord(s.trim(), cleanWord)).filter(Boolean);
 
-        // Verify AI didn't leak/cheat the secret word inside the stories
-        const hasCheat = stories.some(s => doesStoryLeakSecretWord(s, cleanWord));
-
-        if (!isValidWord(cleanWord) || stories.length !== 3 || hasCheat) {
+        if (!isValidWord(cleanWord) || stories.length !== 3) {
           throw new Error("Sanity checks failed for Groq generated pair.");
         }
 
