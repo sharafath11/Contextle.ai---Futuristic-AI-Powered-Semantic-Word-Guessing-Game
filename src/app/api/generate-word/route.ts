@@ -20,14 +20,6 @@ const EASY_PAIRS = [
       'Often played around campfires, it can be strummed to accompany singing and acoustic melodies.',
       'This acoustic instrument has six strings and a hollow wooden body that makes music when plucked.'
     ] 
-  },
-  { 
-    word: 'ocean', 
-    stories: [
-      'Its waves crash against sandy shores, attracting surfers and beachgoers worldwide.',
-      'It is home to coral reefs, sharks, whales, and billions of other marine organisms.',
-      'A vast body of salty water that covers most of our planet and is governed by the lunar tides.'
-    ] 
   }
 ];
 
@@ -38,14 +30,6 @@ const MEDIUM_PAIRS = [
       'Massive chunks of ice calve off the edges of this structure, crashing dramatically into the sea.',
       'It contains the largest reservoir of fresh water on Earth and is highly sensitive to climate shifts.',
       'A colossal, slow-moving river of ancient ice that carves valleys out of mountains over thousands of years.'
-    ] 
-  },
-  { 
-    word: 'gravity', 
-    stories: [
-      'Einstein described it as a curvature of spacetime caused by mass and energy.',
-      'The strength of this force depends on the mass of the object; it is much stronger on Jupiter than on Mars.',
-      'The invisible pulling force that prevents us from floating away into space and holds the moon in its orbit.'
     ] 
   }
 ];
@@ -71,7 +55,7 @@ function isValidWord(word: string): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  POST /api/generate-word
+//  POST /api/generate-word - API route to generate a new word
 // ─────────────────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest): Promise<NextResponse> {
   // 1. Verify Supabase session authentication
@@ -95,10 +79,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     }
   } catch {
-    // Body empty
+    // Prevent throwing an error if body is empty
   }
 
-  // 2. Fetch user's current level
+  // 2. Fetch user's current level from Supabase
   const adminClient = await createAdminClient();
   const { data: profile, error: profileError } = await adminClient
     .from("profiles")
@@ -112,10 +96,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const currentLevel = reqLevel !== null ? reqLevel : profile.current_level;
 
-  // System prompt requiring JSON response with flawless spelling and grammar
+  // Prompt requiring 3 clue stories with consistent difficulty
   const prompt = `
 You are generating content for an AI word-guessing game.
-Task: Generate one secret guessable noun and 3 related clue stories/descriptions for Level ${currentLevel}.
+Task: Generate one secret guessable noun and exactly 3 related clue stories/descriptions for Level ${currentLevel}.
 
 STRICT QUALITY CONSTRAINTS:
 
@@ -129,22 +113,29 @@ You are an elite English novelist. Write with absolutely flawless spelling, punc
 3. VARIETY:
 Select one specific genre (such as Noir Detective, Cyberpunk Mystery, Space Exploration, Ancient Fantasy, Steampunk Adventure, Gothic Horror, or Mythological Tale) and write all 3 clue stories in the style of that genre.
 
-4. LEVEL-WISE DIFFICULTY SCALING:
-- Level 1-5 (Easy): Common everyday nouns. Very obvious clues describing physical appearance or utility.
-- Level 6-15 (Medium): Moderately challenging nouns (e.g., "glacier", "gravity", "fossil", "silhouette"). Cryptic, atmospheric clues.
-- Level 16+ (Hard): Complex or deeply semantic nouns (e.g., "paradox", "nostalgia", "serendipity", "equilibrium"). Enigmatic clues requiring lateral thinking.
+4. LEVEL-WISE DIFFICULTY SCALING & CONSISTENCY (CRITICAL CHANGE):
+Do NOT create an internal gradient (Hard, Medium, Easy) within the 3 stories. Instead, all 3 clue stories must have a CONSISTENT difficulty level that matches Level ${currentLevel}:
+- If Level is 1-5 (Easy):
+  * Secret Word: Simple, everyday nouns.
+  * Clue Stories: ALL 3 stories must be straightforward, clear, and very easy/direct descriptions of physical appearance, common location, or basic usage. No cryptic metaphors.
+- If Level is 6-15 (Medium):
+  * Secret Word: Moderately challenging nouns (e.g., "glacier", "gravity", "fossil", "silhouette").
+  * Clue Stories: ALL 3 stories must be moderately cryptic, atmospheric, and require logical deduction.
+- If Level is 16+ (Hard):
+  * Secret Word: Deeply semantic, abstract, or rare concepts (e.g., "paradox", "nostalgia", "equilibrium", "harmony").
+  * Clue Stories: ALL 3 stories must be highly enigmatic, abstract, and puzzle-like, requiring intense lateral thinking. No obvious giveaways.
 
 Requirements:
 1. Return ONLY a valid raw JSON object. Do not include markdown code fences, explanations, or extra text.
 2. The "word" must be a single, common noun, all lowercase, between 3 to 20 letters.
-3. The "stories" must be an array of EXACTLY 3 distinct clue stories ordered from hard/broad (index 0) to easy/specific (index 2). None of them must contain the secret word or its direct synonyms.
+3. The "stories" must be an array of EXACTLY 3 distinct clue stories/descriptions. None of them must contain the secret word or its direct synonyms.
 
 {
   "word": "<the_secret_word>",
   "stories": [
-    "<hard_clue_story>",
-    "<medium_clue_story>",
-    "<easy_clue_story>"
+    "<clue_story_1>",
+    "<clue_story_2>",
+    "<clue_story_3>"
   ]
 }
   `.trim();
@@ -159,7 +150,7 @@ Requirements:
       const model = genAI.getGenerativeModel({
         model: "gemini-2.5-flash",
         generationConfig: {
-          temperature: 0.7, // Lower temperature helps prevent AI typos
+          temperature: 0.7, // Lower temperature helps prevent spelling mistakes
           responseMimeType: "application/json",
         },
       });
