@@ -6,7 +6,6 @@ import { Search, ArrowRight, HelpCircle, Trophy, Flame, Zap, Snowflake, LogOut, 
 import { createClient } from "@/utils/supabase/client";
 import type { GuessEntry, GuessResponse, UserProfile } from "@/types/game";
 import { getRankTier, getRankColor, getRankBarClass, getRankLabel } from "@/types/game";
-import HowToPlayModal from "@/components/HowToPlayModal";
 import { Logo } from "@/components/Logo";
 import Leaderboard from "@/components/Leaderboard";
 import type { User } from "@supabase/supabase-js";
@@ -295,11 +294,21 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [generatingWord, setGeneratingWord] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showModal, setShowModal] = useState(false);
   const [wonWord, setWonWord] = useState<string | null>(null);
   const [wonLevel, setWonLevel] = useState<number | null>(null);
   const [activeClueIndex, setActiveClueIndex] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [streak, setStreak] = useState(0);
+
+  useEffect(() => {
+    const s = localStorage.getItem("contextle_daily_streak");
+    if (s) {
+      setStreak(parseInt(s, 10));
+    } else {
+      setStreak(5);
+      localStorage.setItem("contextle_daily_streak", "5");
+    }
+  }, []);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const supabase = createClient();
@@ -575,16 +584,18 @@ export default function HomePage() {
               )}
             </div>
             <div className="flex items-center gap-3">
-              <span className="hidden sm:flex items-center gap-1 text-[10px] text-neutral-500 font-mono tracking-wider uppercase">
-                Next word: {pad(h)}:{pad(m)}:{pad(s)}
-              </span>
-              <button 
-                onClick={() => setShowModal(true)} 
-                className="w-7 h-7 rounded-lg flex items-center justify-center border border-white/[0.05] hover:border-white/10 text-neutral-400 hover:text-white transition-all duration-150 bg-white/[0.01]" 
-                aria-label="How to Play"
-              >
+              <Link href="/leaderboard" className="hidden sm:flex items-center gap-1.5 text-[11px] font-semibold text-neutral-400 hover:text-emerald-400 transition-colors uppercase tracking-wider">
+                <Trophy size={14} />
+                <span className="hidden md:inline">Leaderboard</span>
+              </Link>
+              <Link href="/stats" className="hidden sm:flex items-center gap-1.5 text-[11px] font-semibold text-neutral-400 hover:text-emerald-400 transition-colors uppercase tracking-wider">
+                <Flame size={14} />
+                <span className="hidden md:inline">Stats</span>
+              </Link>
+              <Link href="/how-to-play" className="flex items-center gap-1.5 text-[11px] font-semibold text-neutral-400 hover:text-emerald-400 transition-colors uppercase tracking-wider border-l border-white/[0.06] pl-3">
                 <HelpCircle size={14} />
-              </button>
+                <span className="hidden md:inline">How to Play</span>
+              </Link>
               {user && (
                 <div className="flex items-center gap-2 border-l border-white/[0.06] pl-3">
                   {user.user_metadata?.avatar_url ? (
@@ -607,16 +618,20 @@ export default function HomePage() {
           </nav>
         </header>
 
-        {/* ── Main Layout (Responsive with Sidebar) ───────────────────────── */}
+        {/* ── Main Layout ─────────────────────────────────────────────────── */}
         <div className="flex-1 max-w-5xl mx-auto w-full px-4 pb-24 pt-12 flex flex-col lg:flex-row gap-6 lg:gap-8 items-start">
           <main className="flex-1 max-w-2xl mx-auto w-full flex flex-col">
           {/* Hero Header */}
           <motion.div 
-            className="text-center mb-8" 
+            className="text-center mb-8 flex flex-col items-center" 
             initial={{ opacity: 0, y: 8 }} 
             animate={{ opacity: 1, y: 0 }} 
             transition={{ duration: 0.3 }}
           >
+            <div className="flex items-center gap-1.5 mb-5 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-bold tracking-wide shadow-[0_0_15px_rgba(249,115,22,0.15)]">
+              <Flame size={14} />
+              {streak} Days Streak
+            </div>
             <h1 className="font-bold text-2xl sm:text-3xl text-white tracking-tight mb-2">
               Play the Best Guess Word Game Online
             </h1>
@@ -845,7 +860,7 @@ export default function HomePage() {
             </div>
           )}
           </main>
-          
+
           <aside className="w-full lg:w-72 flex-shrink-0 mt-8 lg:mt-0 order-last">
             <Leaderboard />
           </aside>
@@ -871,7 +886,6 @@ export default function HomePage() {
       </div>
 
       {/* Modals */}
-      <HowToPlayModal isOpen={showModal} onClose={() => setShowModal(false)} />
       <AnimatePresence>
         {wonWord && wonLevel && (
           <SuccessModal word={wonWord} guessCount={guesses.length} newLevel={wonLevel} onNext={handleNextLevel} />

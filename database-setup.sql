@@ -20,3 +20,30 @@ CREATE TABLE IF NOT EXISTS public.played_words (
 
 -- Index to quickly query a user's past words for the anti-repetition filter
 CREATE INDEX IF NOT EXISTS idx_played_words_user_id ON public.played_words(user_id);
+
+-- ==============================================================================
+-- 3. Profiles Table (For Leaderboard & Game State)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT,
+  username TEXT,
+  display_name TEXT,
+  current_level INTEGER DEFAULT 1,
+  active_word TEXT,
+  current_story TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable Row Level Security
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Leaderboard Policy: Allow EVERYONE (even logged out) to view the top players
+CREATE POLICY "Public profiles are viewable by everyone."
+  ON public.profiles FOR SELECT
+  USING (true);
+
+-- Users can update their own profile (Optional, depending on if updates go through API/Admin client)
+CREATE POLICY "Users can update own profile."
+  ON public.profiles FOR UPDATE
+  USING (auth.uid() = id);

@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { Trophy, Loader2 } from "lucide-react";
+import { Trophy, Loader2, ArrowRight } from "lucide-react";
+import Link from "next/link";
 
 interface Player {
-  username: string | null;
+  id: string;
   display_name: string | null;
   current_level: number;
 }
@@ -19,7 +20,7 @@ export default function Leaderboard() {
       const supabase = createClient();
       const { data, error } = await supabase
         .from("profiles")
-        .select("username, display_name, current_level")
+        .select("id, display_name, current_level")
         .order("current_level", { ascending: false })
         .limit(5);
 
@@ -81,7 +82,7 @@ export default function Leaderboard() {
                     {idx + 1}
                   </div>
                   <span className="text-[11px] font-medium text-neutral-300 group-hover:text-white transition-colors truncate max-w-[100px] sm:max-w-[140px]">
-                    {player.display_name || player.username || "Player_" + Math.floor(Math.random() * 9000 + 1000)}
+                    {player.display_name || "Player_" + Math.floor(Math.random() * 9000 + 1000)}
                   </span>
                 </div>
                 <div className="flex flex-col items-end">
@@ -95,6 +96,14 @@ export default function Leaderboard() {
               </div>
             );
           })}
+        </div>
+      )}
+      
+      {!loading && players.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-white/[0.04] text-center">
+          <Link href="/leaderboard" className="text-[10px] text-neutral-400 hover:text-emerald-400 font-semibold tracking-wider uppercase transition-colors flex items-center justify-center gap-1 group">
+            View Complete Board <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
+          </Link>
         </div>
       )}
     </section>
