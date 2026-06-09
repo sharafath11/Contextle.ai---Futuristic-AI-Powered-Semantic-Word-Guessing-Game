@@ -20,7 +20,7 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 // ─── Site Constants ───────────────────────────────────────────────────────────
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://contextle.online";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.contextle.online";
 const SITE_NAME = "Contextle.ai";
 const SITE_DESCRIPTION =
   "Play Contextle.ai, the ultimate futuristic AI word game. Guess the secret word using real-time semantic similarity ranks and dynamic AI clue stories. Challenge your brain daily!";
@@ -32,19 +32,17 @@ export const metadata: Metadata = {
 
   // ── Core ──────────────────────────────────────────────────────────────────
   title: {
-    default: "Contextle - Ultimate AI Guess Word Game Online",
+    default: "Contextle - Ultimate Word Guessing Game Online",
     template: "%s | Contextle",
   },
-  description: "Looking for the best guess word game online? Challenge your vocabulary with Contextle. Guess the secret word daily using immersive, AI-generated context clue stories. Play for free!",
+  description: "Play the ultimate word guessing game online. Challenge your brain with Contextle by guessing the secret daily noun using AI-generated contextual stories. Free to play!",
   keywords: [
-    "guess word game",
+    "word guessing game",
     "guess word game online",
     "contextle",
-    "ai word puzzle",
-    "daily word guessing game",
-    "wordle alternative",
-    "context clues game",
-    "free online word game"
+    "contextle online",
+    "ai word game",
+    "daily word puzzle"
   ],
   authors: [{ name: "Contextle Team", url: SITE_URL }],
   creator: "Contextle",
@@ -72,10 +70,10 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     alternateLocale: ["en_GB", "en_AU"],
-    url: "https://contextle.online",
+    url: SITE_URL,
     siteName: "Contextle",
-    title: "Contextle - Ultimate AI Guess Word Game Online",
-    description: "Play the ultimate guess word game online! Crack the code and guess the secret word daily using smart AI context clues.",
+    title: "Contextle - Ultimate Word Guessing Game Online",
+    description: "Crack the daily puzzle in the best word guessing game online using interactive AI context clues.",
     images: [
       {
         url: OG_IMAGE,
@@ -92,8 +90,8 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     site: "@contextleai",
     creator: "@contextleai",
-    title: "Contextle - Free Guess Word Game Online",
-    description: "Can you solve the puzzle? Play the best AI-powered guess word game online now!",
+    title: "Contextle - Word Guessing Game",
+    description: "Play the trending AI word guessing game online for free.",
     images: [
       {
         url: OG_IMAGE,
@@ -102,7 +100,7 @@ export const metadata: Metadata = {
     ],
   },
 
-  // ── Icons ─────────────────────────────────────────────────────────────────
+  // ── FIX FAVICON BLANK EARTH ICON ISSUE ──
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: 'any' },
